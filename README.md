@@ -12,6 +12,8 @@ Built with Flutter for iOS and Android.
 
 This is the public mirror of Spectrum Strategy. The team develops in a private repository; each published release is synced here as a single squashed commit, so this repo always holds the source of the latest release without internal history. The first sync lands with release 1.0.0.
 
+Until that sync, the `pubspec.yaml`, `lib/` and `test/` here are a placeholder, not the app. They exist so this repository is a valid Flutter project and CI has something to run against. The release sync replaces them wholesale.
+
 ## Contributing
 
 Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes flow between this mirror and the internal repository.
