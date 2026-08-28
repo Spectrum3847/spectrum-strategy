@@ -1,0 +1,515 @@
+name: Nightly
+
+on:
+  schedule:
+
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: Spectrum3847/SpectrumStrategy
+  DEVELOP_BRANCH: develop
+  FLUTTER_VERSION: 3.47.1
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.push.outputs.changed }}
+      sha: ${{ steps.push.outputs.sha }}
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: master
+          token: ${{ secrets.MIRROR_SOURCE_TOKEN }}
+          path: source
+
+          persist-credentials: false
+
+      - name: Record source commit
+        id: source
+        run: echo "sha=$(git -C source rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout mirror
+        uses: actions/checkout@v7
+        with:
+          path: mirror
+          fetch-depth: 0
+
+      - name: Start a fresh develop
+        run: |
+          set -euo pipefail
+          cd mirror
+
+          git checkout -q --orphan snapshot
+          git rm -rq --cached . || true
+
+      - name: Assemble the snapshot
+        run: source/scripts/oss/assemble_mirror.sh source mirror
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Format the snapshot
+
+        run: dart format mirror/lib/ mirror/test/
+
+      - name: Push the snapshot
+        id: push
+        run: |
+          set -euo pipefail
+          cd mirror
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          NEW_TREE="$(git write-tree)"
+          OLD_TREE="$(git rev-parse -q --verify "refs/remotes/origin/$DEVELOP_BRANCH^{tree}" || true)"
+          TREE_CHANGED=true
+          if [ "$NEW_TREE" = "$OLD_TREE" ]; then
+            TREE_CHANGED=false
+          fi
+
+          LAST_PUBLISHED=""
+          if git rev-parse -q --verify refs/tags/nightly-published >/dev/null; then
+            LAST_PUBLISHED="$(git tag -l --format='%(contents)' nightly-published)"
+          fi
+          if [ "$TREE_CHANGED" = false ] && [ "$LAST_PUBLISHED" = "${{ steps.source.outputs.sha }}" ]; then
+            echo "Snapshot matches develop and was already published; nothing to build."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$TREE_CHANGED" = true ]; then
+            git commit -q -m "Update"
+
+            git push -q --force origin "snapshot:$DEVELOP_BRANCH"
+            SNAPSHOT_SHA="$(git rev-parse HEAD)"
+          else
+            echo "Snapshot unchanged, but the last build never finished publishing; retrying."
+
+            SNAPSHOT_SHA="$(git rev-parse "refs/remotes/origin/$DEVELOP_BRANCH^{commit}")"
+          fi
+          {
+            echo "changed=true"
+            echo "sha=$SNAPSHOT_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Ensure the rolling nightly release exists
+        if: steps.push.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          NOTES="Latest nightly builds of Spectrum Strategy. The APK is debug-signed for sideloading; the IPA installs through AltStore or SideStore."
+          gh release create nightly --repo "$GITHUB_REPOSITORY" \
+            --title "Nightly build" --notes "$NOTES" --prerelease 2>/dev/null || true
+          gh release edit nightly --repo "$GITHUB_REPOSITORY" \
+            --title "Nightly build" --notes "$NOTES"
+
+  ios:
+    needs: sync
+    if: needs.sync.outputs.changed == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    permissions:
+      contents: write
+
+    env:
+      SITE: frcspectrumstrategy-nightly
+      SITE_URL: https://frcspectrumstrategy-nightly.web.app
+      VERSION_NAME: 0.0.0-nightly
+      IPA_FILE: SpectrumStrategy-nightly.ipa
+      SOURCE_SHA: ${{ needs.sync.outputs.source_sha }}
+    steps:
+      - name: Checkout the snapshot
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.sync.outputs.sha }}
+          persist-credentials: false
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v6
+        with:
+          path: |
+            ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-pods-${{ hashFiles('pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-pods-
+
+      - name: Build unsigned IPA
+        run: |
+
+          flutter build ios --release --no-codesign \
+            --obfuscate --split-debug-info=build/symbols \
+            --build-name "$VERSION_NAME" \
+            --build-number "$(( 1000 + GITHUB_RUN_NUMBER ))" \
+            --dart-define=GIT_COMMIT="$SOURCE_SHA" \
+            --dart-define=GIT_BRANCH="master" \
+            --dart-define=BUILD_DATE="$(date -u +%Y-%m-%d)"
+
+      - name: Read real version from built Info.plist
+        id: info
+        run: |
+          APP_PATH="$(find build/ios -type d -name Runner.app | head -1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "Runner.app not found under build/ios"; exit 1
+          fi
+          REAL_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP_PATH/Info.plist")"
+          REAL_BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP_PATH/Info.plist")"
+          if [ -z "$REAL_VERSION" ] || [ -z "$REAL_BUILD" ]; then
+            echo "Could not read CFBundle values from $APP_PATH/Info.plist"; exit 1
+          fi
+          {
+            echo "app_path=$APP_PATH"
+            echo "version=$REAL_VERSION"
+            echo "build=$REAL_BUILD"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Package IPA
+        run: |
+          APP_PATH="${{ steps.info.outputs.app_path }}"
+          mkdir -p altstore_out/Payload
+          cp -R "$APP_PATH" altstore_out/Payload/
+          (cd altstore_out && zip -qr "$IPA_FILE" Payload && rm -rf Payload)
+          cp web/icons/Icon-192.png altstore_out/icon.png
+
+      - name: Publish to the rolling nightly release
+
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload nightly --repo "$GITHUB_REPOSITORY" \
+            "altstore_out/$IPA_FILE" --clobber
+
+      - name: Generate AltStore source JSON
+        run: |
+          python3 scripts/altstore/generate_source.py \
+            --channel nightly \
+            --out altstore_out/nightly.json \
+            --ipa "altstore_out/$IPA_FILE" \
+            --version "${{ steps.info.outputs.version }}" \
+            --build-version "${{ steps.info.outputs.build }}" \
+            --date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --download-url "https://github.com/$GITHUB_REPOSITORY/releases/download/nightly/$IPA_FILE" \
+            --icon-url "$SITE_URL/icon.png" \
+            --description "Nightly build $SOURCE_SHA"
+
+      - name: Install the Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy source JSON and icon to Firebase Hosting
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NIGHTLY_HOSTING }}
+        run: |
+
+          rm -f "altstore_out/$IPA_FILE"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+
+          cat > firebase.altstore.json <<JSON
+          { "hosting": { "site": "$SITE", "public": "altstore_out", "ignore": ["**/.*"], "headers": [ { "source": "**", "headers": [ { "key": "Access-Control-Allow-Origin", "value": "*" } ] }, { "source": "**/*.json", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] } ] } }
+          JSON
+
+          set +e
+          DEPLOY_OUTPUT="$(firebase deploy --only hosting \
+            --config firebase.altstore.json \
+            --project frcspectrumstrategy \
+            --non-interactive 2>&1)"
+          DEPLOY_STATUS=$?
+          set -e
+          printf '%s\n' "$DEPLOY_OUTPUT"
+          rm -f "$RUNNER_TEMP/sa.json"
+          if [ "$DEPLOY_STATUS" -ne 0 ] && \
+             ! grep -q "current active version" <<<"$DEPLOY_OUTPUT"; then
+            exit "$DEPLOY_STATUS"
+          fi
+
+      - name: Verify the hosted source JSON advertises this build
+        run: |
+          set -euo pipefail
+          EXPECTED="${{ steps.info.outputs.build }}"
+          for attempt in 1 2 3 4 5; do
+            LIVE="$(curl -fsSL "$SITE_URL/nightly.json" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin)["apps"][0]["versions"][0]["buildVersion"])' \
+              2>/dev/null || true)"
+            if [ "$LIVE" = "$EXPECTED" ]; then
+              echo "Hosted nightly.json advertises build $LIVE"
+              exit 0
+            fi
+            echo "Attempt $attempt: hosted build is '$LIVE', want '$EXPECTED'; retrying in 10s"
+            sleep 10
+          done
+          echo "::error::Hosted nightly.json advertises build '$LIVE', expected '$EXPECTED'"
+          exit 1
+
+  android:
+    needs: sync
+    if: needs.sync.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    permissions:
+      contents: write
+
+    env:
+      GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+      APK_FILE: SpectrumStrategy-nightly.apk
+      SOURCE_SHA: ${{ needs.sync.outputs.source_sha }}
+    steps:
+      - name: Checkout the snapshot
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.sync.outputs.sha }}
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/**/*.gradle*') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Write google-services.json
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" | base64 --decode \
+            > android/app/google-services.json
+
+      - name: Build release APK
+        run: |
+          flutter build apk --release --obfuscate --split-debug-info=build/symbols \
+            --build-name "0.0.0-nightly" \
+            --build-number "$(( 1000 + GITHUB_RUN_NUMBER ))" \
+            --dart-define=GIT_COMMIT="$SOURCE_SHA" \
+            --dart-define=GIT_BRANCH="master" \
+            --dart-define=BUILD_DATE="$(date -u +%Y-%m-%d)"
+
+      - name: Publish to the rolling nightly release
+
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk "$APK_FILE"
+          gh release upload nightly --repo "$GITHUB_REPOSITORY" \
+            "$APK_FILE" --clobber
+
+  desktop:
+    needs: sync
+    if: needs.sync.outputs.changed == 'true'
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            runner: windows-latest
+            artifact: SpectrumStrategy-windows-x64.zip
+          - platform: macos
+            runner: macos-latest
+            artifact: SpectrumStrategy-macos.zip
+          - platform: linux
+            runner: ubuntu-latest
+            artifact: SpectrumStrategy-linux-x86_64.AppImage
+    runs-on: ${{ matrix.runner }}
+
+    permissions:
+      contents: write
+
+    env:
+      SOURCE_SHA: ${{ needs.sync.outputs.source_sha }}
+      ARTIFACT: ${{ matrix.artifact }}
+    steps:
+      - name: Checkout the snapshot
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.sync.outputs.sha }}
+          persist-credentials: false
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        timeout-minutes: 5
+        run: |
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y \
+            clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Build desktop app
+        shell: bash
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+        run: |
+          build() {
+            flutter build ${{ matrix.platform }} --release \
+              --obfuscate --split-debug-info=build/symbols \
+              --dart-define=GIT_COMMIT="$SOURCE_SHA" \
+              --dart-define=GIT_BRANCH="master" \
+              --dart-define=BUILD_DATE="$(date -u +%Y-%m-%d)" \
+              --dart-define=GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID}" \
+              --dart-define=GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET}"
+          }
+          for attempt in 1 2 3; do
+            if build; then exit 0; fi
+            echo "Build attempt $attempt failed; retrying in 30s"
+            sleep 30
+          done
+          echo "Build failed after 3 attempts"
+          exit 1
+
+      - name: Verify VC++ Runtime DLLs (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $releaseDir = "build/windows/x64/runner/Release"
+          foreach ($dll in "vcruntime140.dll", "msvcp140.dll") {
+            $path = Join-Path $releaseDir $dll
+            if (!(Test-Path $path)) {
+              throw "VC++ Runtime DLL missing from the build output: $path"
+            }
+            Write-Host "Bundled $dll"
+          }
+
+      - name: Package Windows build (unsigned ZIP)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $releaseDir = "build/windows/x64/runner/Release"
+          Copy-Item "scripts/install-windows-start-menu.ps1" "$releaseDir/"
+          Compress-Archive -Path "$releaseDir/*" -DestinationPath $env:ARTIFACT
+
+          $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $env:ARTIFACT))
+          $hasScript = $zip.Entries.Name -contains 'install-windows-start-menu.ps1'
+          $zip.Dispose()
+          if (-not $hasScript) {
+            throw "install-windows-start-menu.ps1 is missing from $env:ARTIFACT"
+          }
+
+      - name: Package macOS build (unsigned .app zip)
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "$app" ]; then echo "No .app bundle found"; exit 1; fi
+
+          ditto -c -k --sequesterRsrc --keepParent "$app" "$ARTIFACT"
+
+      - name: Package Linux build (AppImage)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="build/linux/x64/release/bundle"
+          appdir="AppDir"
+          mkdir -p "$appdir/usr/bin"
+          cp -r "$bundle"/* "$appdir/usr/bin/"
+
+          bin="$(find "$appdir/usr/bin" -maxdepth 1 -type f -executable ! -name '*.so*' | head -1)"
+          binname="$(basename "$bin")"
+
+          printf '#!/bin/sh\n' > "$appdir/AppRun"
+          cat >> "$appdir/AppRun" <<EOF
+          HERE="\$(dirname "\$(readlink -f "\$0")")"
+          exec "\$HERE/usr/bin/$binname" "\$@"
+          EOF
+          chmod +x "$appdir/AppRun"
+          cat > "$appdir/spectrumstrategy.desktop" <<EOF
+          [Desktop Entry]
+          Name=Spectrum Strategy
+          Exec=$binname
+          Icon=spectrumstrategy
+          Type=Application
+          Categories=Utility;
+          EOF
+
+          cp web/icons/Icon-512.png "$appdir/spectrumstrategy.png"
+          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$appdir" "$ARTIFACT"
+
+      - name: Publish to the rolling nightly release
+
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload nightly --repo "$GITHUB_REPOSITORY" \
+            "$ARTIFACT" --clobber
+
+  finalize:
+
+    needs: [sync, ios, android, desktop]
+    if: >-
+      always() && needs.ios.result == 'success' &&
+      needs.android.result == 'success' && needs.desktop.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout mirror
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Record the published source commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f -a nightly-published "${{ needs.sync.outputs.sha }}" \
+            -m "${{ needs.sync.outputs.source_sha }}"
+          git push -q -f origin refs/tags/nightly-published
