@@ -1,0 +1,19 @@
+# Placeholder so this repository is a valid Flutter project before the first
+# release sync. The real source replaces all of this when 1.0.0 publishes and
+# oss-sync runs; until then CI has something to run against instead of failing
+# on every workflow-sync PR.
+name: spectrumstrategy
+description: Placeholder. The real source lands with release 1.0.0.
+publish_to: none
+version: 0.0.0
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
