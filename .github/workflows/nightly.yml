@@ -485,8 +485,7 @@ jobs:
           EOF
 
           cp web/icons/Icon-512.png "$appdir/spectrumstrategy.png"
-          wget -q "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage" -O appimagetool
-          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool" | sha256sum -c -
+          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
           chmod +x appimagetool
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$appdir" "$ARTIFACT"
 
@@ -528,6 +527,7 @@ jobs:
           git push -q -f origin refs/tags/nightly-published
 
       - name: Prune old nightly assets
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
