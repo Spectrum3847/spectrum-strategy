@@ -193,8 +193,7 @@ jobs:
             echo "version=$REAL_VERSION"
             echo "build=$REAL_BUILD"
           } >> "$GITHUB_OUTPUT"
-
-          echo "IPA_FILE=SpectrumStrategy-nightly-$REAL_BUILD.ipa" >> "$GITHUB_ENV"
+          echo "IPA_FILE=SpectrumStrategy-nightly.ipa" >> "$GITHUB_ENV"
 
       - name: Package IPA
         run: |
@@ -327,7 +326,7 @@ jobs:
       - name: Build release APK
         run: |
           BUILD_NUMBER="$(( 1000 + GITHUB_RUN_NUMBER ))"
-          echo "APK_FILE=SpectrumStrategy-nightly-$BUILD_NUMBER.apk" >> "$GITHUB_ENV"
+          echo "APK_FILE=SpectrumStrategy-nightly.apk" >> "$GITHUB_ENV"
           build_date="$(date -u +%Y-%m-%d)"
           flutter build apk --release --obfuscate --split-debug-info=build/symbols \
             --build-name "0.0.0-nightly" \
@@ -351,18 +350,17 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
-
       matrix:
         include:
           - platform: windows
             runner: windows-latest
-            artifact: SpectrumStrategy-windows-x64-${{ github.run_number }}.zip
+            artifact: SpectrumStrategy-windows-x64.zip
           - platform: macos
             runner: macos-latest
-            artifact: SpectrumStrategy-macos-${{ github.run_number }}.zip
+            artifact: SpectrumStrategy-macos.zip
           - platform: linux
             runner: ubuntu-latest
-            artifact: SpectrumStrategy-linux-x86_64-${{ github.run_number }}.AppImage
+            artifact: SpectrumStrategy-linux-x86_64.AppImage
     runs-on: ${{ matrix.runner }}
 
     permissions:
@@ -525,23 +523,3 @@ jobs:
           git tag -f -a nightly-published "${{ needs.sync.outputs.sha }}" \
             -m "${{ needs.sync.outputs.source_sha }}"
           git push -q -f origin refs/tags/nightly-published
-
-      - name: Prune old nightly assets
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          PUBLISHED_URL="$(curl -fsSL "https://frcspectrumstrategy-nightly.web.app/nightly.json" \
-            | python3 -c 'import json,sys; print(json.load(sys.stdin)["apps"][0]["versions"][0]["downloadURL"])')"
-          IPA_REFERENCED="$(basename "$PUBLISHED_URL")"
-          python3 scripts/ci/prune_nightly_assets.py --repo "$GITHUB_REPOSITORY" --tag nightly \
-            --pattern 'SpectrumStrategy-nightly-*.ipa' --referenced-name "$IPA_REFERENCED" --max-age-days 3
-          python3 scripts/ci/prune_nightly_assets.py --repo "$GITHUB_REPOSITORY" --tag nightly \
-            --pattern 'SpectrumStrategy-nightly-*.apk' --max-age-days 3
-          python3 scripts/ci/prune_nightly_assets.py --repo "$GITHUB_REPOSITORY" --tag nightly \
-            --pattern 'SpectrumStrategy-windows-x64-*.zip' --max-age-days 3
-          python3 scripts/ci/prune_nightly_assets.py --repo "$GITHUB_REPOSITORY" --tag nightly \
-            --pattern 'SpectrumStrategy-macos-*.zip' --max-age-days 3
-          python3 scripts/ci/prune_nightly_assets.py --repo "$GITHUB_REPOSITORY" --tag nightly \
-            --pattern 'SpectrumStrategy-linux-x86_64-*.AppImage' --max-age-days 3
