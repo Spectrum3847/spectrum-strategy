@@ -16,7 +16,7 @@ concurrency:
 env:
   SOURCE_REPO: Spectrum3847/SpectrumStrategy
   DEVELOP_BRANCH: develop
-  FLUTTER_VERSION: 3.47.1
+  FLUTTER_VERSION: 3.47.2
 
 jobs:
   sync:
