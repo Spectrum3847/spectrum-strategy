@@ -527,7 +527,9 @@ jobs:
       - name: Build web
         run: |
           flutter pub get
-          flutter build web --release --wasm --base-href /
+          build_date="$(date -u +%Y-%m-%d)"
+          flutter build web --release --wasm --base-href / \
+            --dart-define=BUILD_DATE="$build_date"
 
       - name: Deploy to the staging Hosting site
         env:
