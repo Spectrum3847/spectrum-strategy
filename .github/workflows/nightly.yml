@@ -5,6 +5,11 @@ on:
 
     - cron: "0 6 * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Rebuild and republish even if nothing changed since the last nightly"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -93,7 +98,8 @@ jobs:
           if git rev-parse -q --verify refs/tags/nightly-published >/dev/null; then
             LAST_PUBLISHED="$(git tag -l --format='%(contents)' nightly-published)"
           fi
-          if [ "$TREE_CHANGED" = false ] && [ "$LAST_PUBLISHED" = "${{ steps.source.outputs.sha }}" ]; then
+          FORCE="${{ github.event.inputs.force }}"
+          if [ "$TREE_CHANGED" = false ] && [ "$LAST_PUBLISHED" = "${{ steps.source.outputs.sha }}" ] && [ "$FORCE" != "true" ]; then
             echo "Snapshot matches develop and was already published; nothing to build."
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
