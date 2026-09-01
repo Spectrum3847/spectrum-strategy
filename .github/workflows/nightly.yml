@@ -51,6 +51,16 @@ jobs:
           source_sha="$(git -C source rev-parse --short HEAD)"
           echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
 
+      - name: Package private docs for the build jobs
+        run: source/scripts/oss/package_private_docs.sh source private-docs.tar.gz
+
+      - name: Upload private docs bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: private-docs
+          path: private-docs.tar.gz
+          retention-days: 1
+
       - name: Checkout mirror
         uses: actions/checkout@v7
         with:
@@ -151,6 +161,12 @@ jobs:
         with:
           ref: ${{ needs.sync.outputs.sha }}
           persist-credentials: false
+
+      - name: Restore private docs bundle
+        uses: actions/download-artifact@v6
+        with:
+          name: private-docs
+      - run: tar -xzf private-docs.tar.gz && rm private-docs.tar.gz
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -300,6 +316,12 @@ jobs:
           ref: ${{ needs.sync.outputs.sha }}
           persist-credentials: false
 
+      - name: Restore private docs bundle
+        uses: actions/download-artifact@v6
+        with:
+          name: private-docs
+      - run: tar -xzf private-docs.tar.gz && rm private-docs.tar.gz
+
       - name: Set up JDK 21
         uses: actions/setup-java@v6
         with:
@@ -381,6 +403,12 @@ jobs:
         with:
           ref: ${{ needs.sync.outputs.sha }}
           persist-credentials: false
+
+      - name: Restore private docs bundle
+        uses: actions/download-artifact@v6
+        with:
+          name: private-docs
+      - run: tar -xzf private-docs.tar.gz && rm private-docs.tar.gz
 
       - name: Install Linux build dependencies
         if: matrix.platform == 'linux'
@@ -517,6 +545,12 @@ jobs:
         with:
           ref: ${{ needs.sync.outputs.sha }}
           persist-credentials: false
+
+      - name: Restore private docs bundle
+        uses: actions/download-artifact@v6
+        with:
+          name: private-docs
+      - run: tar -xzf private-docs.tar.gz && rm private-docs.tar.gz
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
