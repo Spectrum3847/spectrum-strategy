@@ -596,6 +596,28 @@ jobs:
           echo "Staging live: https://frcspectrumstrategy-staging.web.app"
           rm -f "$RUNNER_TEMP/sa.json"
 
+  cleanup-docs-artifact:
+
+    needs: [sync, ios, android, desktop, staging-web]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Delete the private docs artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          artifact_id="$(gh api --paginate "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
+            --jq '.artifacts[] | select(.name == "private-docs") | .id')"
+          if [ -z "$artifact_id" ]; then
+            echo "No private-docs artifact on this run; nothing to delete."
+            exit 0
+          fi
+          gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$artifact_id"
+
   finalize:
 
     needs: [sync, ios, android, desktop]
