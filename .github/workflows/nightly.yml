@@ -499,6 +499,61 @@ jobs:
           gh release upload nightly --repo "$GITHUB_REPOSITORY" --clobber \
             "$ARTIFACT"
 
+  staging-web:
+
+    needs: sync
+    if: needs.sync.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout the snapshot
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.sync.outputs.sha }}
+          persist-credentials: false
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Build web
+        run: |
+          flutter pub get
+          flutter build web --release --wasm --base-href /
+
+      - name: Deploy to the staging Hosting site
+        env:
+
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NIGHTLY_HOSTING }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SERVICE_ACCOUNT" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT_NIGHTLY_HOSTING is not set on this repo; skipping the staging deploy."
+            exit 0
+          fi
+          printf '%s' "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+
+          deploy_output=$(npx -y firebase-tools@latest deploy \
+            --only hosting:frcspectrumstrategy-staging \
+            --project frcspectrumstrategy --non-interactive 2>&1) && deploy_exit=0 || deploy_exit=$?
+
+          if [ "$deploy_exit" -ne 0 ]; then
+            if echo "$deploy_output" | grep -q "current active version"; then
+              echo "Staging already up to date (version is current active)."
+            else
+              echo "$deploy_output"
+              exit 1
+            fi
+          else
+            echo "$deploy_output"
+          fi
+
+          echo "Staging live: https://frcspectrumstrategy-staging.web.app"
+          rm -f "$RUNNER_TEMP/sa.json"
+
   finalize:
 
     needs: [sync, ios, android, desktop]
