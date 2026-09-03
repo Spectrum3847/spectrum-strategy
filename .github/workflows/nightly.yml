@@ -645,3 +645,67 @@ jobs:
           git tag -f -a nightly-published "${{ needs.sync.outputs.sha }}" \
             -m "${{ needs.sync.outputs.source_sha }}"
           git push -q -f origin refs/tags/nightly-published
+
+  report-failure:
+    needs: [sync, ios, android, desktop, staging-web]
+
+    if: >-
+      always() &&
+      (contains(fromJSON('["failure", "cancelled"]'), needs.sync.result) ||
+       (needs.sync.outputs.changed == 'true' &&
+        (contains(fromJSON('["failure", "cancelled"]'), needs.ios.result) ||
+         contains(fromJSON('["failure", "cancelled"]'), needs.android.result) ||
+         contains(fromJSON('["failure", "cancelled"]'), needs.desktop.result) ||
+         contains(fromJSON('["failure", "cancelled"]'), needs['staging-web'].result))))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Open or update the failure issue on the private repo
+        env:
+          GH_TOKEN: ${{ secrets.NIGHTLY_ALERT_TOKEN }}
+          SOURCE_REPO: Spectrum3847/SpectrumStrategy
+          SOURCE_SHA: ${{ needs.sync.outputs.source_sha }}
+          SYNC: ${{ needs.sync.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          IOS: ${{ needs.ios.result }}
+          ANDROID: ${{ needs.android.result }}
+          DESKTOP: ${{ needs.desktop.result }}
+          STAGING: ${{ needs['staging-web'].result }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::NIGHTLY_ALERT_TOKEN is not set; cannot report the failure to $SOURCE_REPO."
+            exit 0
+          fi
+
+          title="Nightly build is failing on the mirror"
+          {
+            echo "The mirror's nightly build did not succeed. Paid CI does not compile"
+            echo "for any platform, so this is the gate that catches a platform break."
+            echo
+            echo "\`cancelled\` usually means the job hit its timeout, not that someone"
+            echo "stopped it. \`staging-web\` is a Firebase Hosting deploy: it failing on"
+            echo "its own does not mean the app is broken."
+            echo
+            echo "| platform | result |"
+            echo "|---|---|"
+            echo "| sync | $SYNC |"
+            echo "| iOS | $IOS |"
+            echo "| Android | $ANDROID |"
+            echo "| desktop | $DESKTOP |"
+            echo "| staging web | $STAGING |"
+            echo
+            echo "Snapshot of master: \`$SOURCE_SHA\`"
+            echo
+            echo "Run: $RUN_URL"
+          } > body.md
+
+          existing="$(gh issue list --repo "$SOURCE_REPO" --state open \
+                      --search "$title in:title" --json number,title \
+                      --jq "[.[] | select(.title == \"$title\")] | .[0].number // empty")"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$SOURCE_REPO" --body-file body.md
+            echo "Commented on #$existing."
+          else
+            gh issue create --repo "$SOURCE_REPO" --title "$title" --body-file body.md
+          fi
