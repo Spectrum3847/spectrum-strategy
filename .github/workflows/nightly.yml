@@ -196,7 +196,8 @@ jobs:
             --build-number "$(( 1000 + GITHUB_RUN_NUMBER ))" \
             --dart-define=GIT_COMMIT="$SOURCE_SHA" \
             --dart-define=GIT_BRANCH="master" \
-            --dart-define=BUILD_DATE="$build_date"
+            --dart-define=BUILD_DATE="$build_date" \
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
 
       - name: Read real version from built Info.plist
         id: info
@@ -361,7 +362,8 @@ jobs:
             --build-number "$BUILD_NUMBER" \
             --dart-define=GIT_COMMIT="$SOURCE_SHA" \
             --dart-define=GIT_BRANCH="master" \
-            --dart-define=BUILD_DATE="$build_date"
+            --dart-define=BUILD_DATE="$build_date" \
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
 
       - name: Publish to the rolling nightly release
 
@@ -444,7 +446,8 @@ jobs:
               --dart-define=BUILD_DATE="$build_date" \
               --dart-define=BUILD_TIMESTAMP="$build_timestamp" \
               --dart-define=GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID}" \
-              --dart-define=GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET}"
+              --dart-define=GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET}" \
+              --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
           }
           for attempt in 1 2 3; do
             if build; then exit 0; fi
@@ -563,7 +566,8 @@ jobs:
           flutter pub get
           build_date="$(date -u +%Y-%m-%d)"
           flutter build web --release --wasm --base-href / \
-            --dart-define=BUILD_DATE="$build_date"
+            --dart-define=BUILD_DATE="$build_date" \
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
 
       - name: Deploy to the staging Hosting site
         env:
