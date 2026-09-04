@@ -352,6 +352,25 @@ jobs:
           printf '%s' "$GOOGLE_SERVICES_JSON" | base64 --decode \
             > android/app/google-services.json
 
+      - name: Write the nightly signing keystore
+        env:
+          ANDROID_NIGHTLY_KEYSTORE: ${{ secrets.ANDROID_NIGHTLY_KEYSTORE }}
+          ANDROID_NIGHTLY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_NIGHTLY_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_NIGHTLY_KEYSTORE" ]; then
+            echo "No nightly keystore secret; falling back to debug signing." >&2
+            echo "Google sign-in will not work on this build." >&2
+            exit 0
+          fi
+          printf '%s' "$ANDROID_NIGHTLY_KEYSTORE" | base64 --decode \
+            > android/app/nightly-signing.keystore
+          cat > android/key.properties <<PROPS
+          storeFile=nightly-signing.keystore
+          storePassword=$ANDROID_NIGHTLY_KEYSTORE_PASSWORD
+          keyAlias=nightly
+          keyPassword=$ANDROID_NIGHTLY_KEYSTORE_PASSWORD
+          PROPS
+
       - name: Build release APK
         run: |
           BUILD_NUMBER="$(( 1000 + GITHUB_RUN_NUMBER ))"
