@@ -352,6 +352,22 @@ jobs:
           printf '%s' "$GOOGLE_SERVICES_JSON" | base64 --decode \
             > android/app/google-services.json
 
+          python3 - <<'CHECK'
+          import json, sys
+          config = json.load(open("android/app/google-services.json"))
+          clients = [
+              oauth
+              for client in config.get("client", [])
+              for oauth in client.get("oauth_client", [])
+          ]
+          if not any(oauth.get("client_type") == 3 for oauth in clients):
+              sys.exit(
+                  "google-services.json has no web (type 3) OAuth client, so "
+                  "this build cannot sign in. Re-export it from the Firebase "
+                  "console and update the GOOGLE_SERVICES_JSON secret."
+              )
+          CHECK
+
       - name: Write the nightly signing keystore
         env:
           ANDROID_NIGHTLY_KEYSTORE: ${{ secrets.ANDROID_NIGHTLY_KEYSTORE }}
