@@ -1,0 +1,8 @@
+{
+  "name": "spectrumstrategy-firebase-deploy",
+  "private": true,
+  "description": "Pinned firebase-tools CLI for the AltStore/nightly Firebase Hosting deploy workflows. Installed with npm ci --ignore-scripts so no dependency's install script runs.",
+  "dependencies": {
+    "firebase-tools": "15.29.0"
+  }
+}

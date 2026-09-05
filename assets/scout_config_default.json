@@ -1,0 +1,263 @@
+{
+  "title": "QRScout",
+  "page_title": "Scouting",
+  "delimiter": "\t",
+  "revision": 1,
+  "sections": [
+    {
+      "name": "Prematch",
+      "fields": [
+        {
+          "title": "Scouter Name",
+          "description": "Enter the full first name and last initial of the scouter without spaces. Ex. JohnD",
+          "type": "text",
+          "required": true,
+          "code": "scouter",
+          "formResetBehavior": "preserve",
+          "defaultValue": ""
+        },
+        {
+          "title": "Match Number",
+          "description": "Pick the match from the event schedule.",
+          "type": "TBA-match-number",
+          "required": true,
+          "code": "matchNumber",
+          "formResetBehavior": "increment",
+          "defaultValue": 1
+        },
+        {
+          "title": "Robot Driver Station",
+          "description": "The driver station of the robot you are scouting this match. DO NOT CHANGE (same as sticker)",
+          "type": "select",
+          "required": true,
+          "code": "robot",
+          "formResetBehavior": "preserve",
+          "defaultValue": "R1",
+          "choices": {
+            "R1": "Red 1",
+            "R2": "Red 2",
+            "R3": "Red 3",
+            "B1": "Blue 1",
+            "B2": "Blue 2",
+            "B3": "Blue 3"
+          }
+        },
+        {
+          "title": "Team Number",
+          "description": "The team number of the robot you are scouting.",
+          "type": "number",
+          "required": true,
+          "code": "pTnumber",
+          "formResetBehavior": "reset",
+          "defaultValue": 0,
+          "min": 1,
+          "max": 19999
+        }
+      ]
+    },
+    {
+      "name": "Autonomous",
+      "fields": [
+        {
+          "title": "Robot Starting Position",
+          "description": "The starting position of the robot on the field.",
+          "type": "select",
+          "required": true,
+          "code": "starting",
+          "formResetBehavior": "reset",
+          "defaultValue": "",
+          "choices": {
+            "No Show": "No Show",
+            "Depot Trench": "Depot Trench",
+            "Outpost Trench": "Outpost Trench",
+            "Depot Bump": "Depot Bump",
+            "Outpost Bump": "Outpost Bump",
+            "Center Hub": "Center Hub"
+          }
+        },
+        {
+          "title": "Fuel Scored",
+          "description": "Approximate fuel scored during autonomous.",
+          "type": "counter",
+          "required": false,
+          "code": "autoFuelScored",
+          "formResetBehavior": "reset",
+          "defaultValue": 0,
+          "buttons": [
+            1,
+            5,
+            10
+          ]
+        },
+        {
+          "title": "Level 1 Climb",
+          "description": "Select if the robot succeeded, failed, or did not attempt to climb the tower.",
+          "type": "select",
+          "required": false,
+          "code": "auLow",
+          "formResetBehavior": "reset",
+          "defaultValue": "Not Attempted",
+          "choices": {
+            "N/A": "Not Attempted",
+            "Failed": "Failed",
+            "Successful": "Successful"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Teleop",
+      "fields": [
+        {
+          "title": "Fuel Scored",
+          "description": "Approximate fuel scored during teleop.",
+          "type": "counter",
+          "required": false,
+          "code": "teleopFuelScored",
+          "formResetBehavior": "reset",
+          "defaultValue": 0,
+          "buttons": [
+            1,
+            5,
+            10
+          ]
+        },
+        {
+          "title": "Scoring Accuracy (%)",
+          "description": "Rate the robot's scoring accuracy.",
+          "type": "range",
+          "required": false,
+          "code": "scoringEff",
+          "formResetBehavior": "reset",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100,
+          "step": 5
+        },
+        {
+          "title": "Defense",
+          "description": "Check if the robot has played defense on robots.",
+          "type": "boolean",
+          "required": false,
+          "code": "tRdefense",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        },
+        {
+          "title": "Passer/Pusher",
+          "description": "Check if the robot passes and/or pushes fuel to their alliance partner from the neutral zone.",
+          "type": "boolean",
+          "required": false,
+          "code": "tRpasser",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        }
+      ]
+    },
+    {
+      "name": "Endgame",
+      "fields": [
+        {
+          "title": "Climb Position",
+          "description": "Select the position of the robot climb.",
+          "type": "select",
+          "required": false,
+          "code": "ePclimb",
+          "formResetBehavior": "reset",
+          "defaultValue": "Not Attempted",
+          "choices": {
+            "N/A": "Not Attempted",
+            "Outpost": "Outpost",
+            "Middle": "Middle",
+            "Depot": "Depot"
+          }
+        },
+        {
+          "title": "Low Climb (L1)",
+          "description": "Select the position of the robot's low (L1) climb attempt.",
+          "type": "select",
+          "required": false,
+          "code": "eLow",
+          "formResetBehavior": "reset",
+          "defaultValue": "Not Attempted",
+          "choices": {
+            "N/A": "Not Attempted",
+            "Outpost": "Outpost",
+            "Middle": "Middle",
+            "Depot": "Depot",
+            "Failed": "Failed",
+            "Successful": "Successful"
+          },
+          "retiredChoiceKeys": ["Failed", "Successful"]
+        },
+        {
+          "title": "Middle Climb (L2)",
+          "description": "Select the position of the robot's middle (L2) climb attempt.",
+          "type": "select",
+          "required": false,
+          "code": "eMiddle",
+          "formResetBehavior": "reset",
+          "defaultValue": "Not Attempted",
+          "choices": {
+            "N/A": "Not Attempted",
+            "Outpost": "Outpost",
+            "Middle": "Middle",
+            "Depot": "Depot",
+            "Failed": "Failed",
+            "Successful": "Successful"
+          },
+          "retiredChoiceKeys": ["Failed", "Successful"]
+        },
+        {
+          "title": "High Climb (L3)",
+          "description": "Select the position of the robot's high (L3) climb attempt.",
+          "type": "select",
+          "required": false,
+          "code": "eHigh",
+          "formResetBehavior": "reset",
+          "defaultValue": "Not Attempted",
+          "choices": {
+            "N/A": "Not Attempted",
+            "Outpost": "Outpost",
+            "Middle": "Middle",
+            "Depot": "Depot",
+            "Failed": "Failed",
+            "Successful": "Successful"
+          },
+          "retiredChoiceKeys": ["Failed", "Successful"]
+        },
+        {
+          "title": "Yellow/Red Card",
+          "description": "Check if the robot received a yellow or red card.",
+          "type": "boolean",
+          "required": false,
+          "code": "ryCard",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        },
+        {
+          "title": "Disconnect/Die",
+          "description": "Check if the robot died or disconnected during the match.",
+          "type": "boolean",
+          "required": false,
+          "code": "dieCard",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        }
+      ]
+    },
+    {
+      "name": "Postmatch",
+      "fields": [
+        {
+          "title": "Comments",
+          "type": "text",
+          "required": false,
+          "code": "comments",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        }
+      ]
+    }
+  ]
+}

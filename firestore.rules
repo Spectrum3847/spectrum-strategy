@@ -1,0 +1,750 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /userProfiles/{uid} {
+
+      allow read: if isAuthed()
+        && (request.auth.uid == uid
+            || isAdmin()
+            || isStrategy()
+            || isDeveloper());
+      allow create: if isAuthed()
+        && ((request.auth.uid == uid
+              && isValidNewProfile(request.resource.data))
+
+            || (isAdmin()
+                && request.auth.uid != uid
+                && isValidAdminProfileCreate(request.resource.data)));
+      allow update: if isAuthed()
+        && isAdmin()
+        && request.auth.uid != uid
+        && isValidProfileUpdate(request.resource.data);
+    }
+
+    match /appConfig/{docId} {
+      allow read: if isAuthed() && isMember()
+        && (docId != 'notifications' || isAdmin());
+      allow write: if isAuthed() && (
+        ((docId == 'accuracyMapping' || docId == 'scoutConfig'
+            || docId == 'pitScoutConfig' || docId == 'prescoutConfig'
+            || docId == 'activeEvent'
+            || docId == 'traitConfig' || docId == 'trexAssignments'
+            || docId == 'trexTeamList')
+          && (isAdmin() || isStrategy() || isDeveloper())) ||
+        isAdmin()
+      );
+    }
+
+    match /scoutEntries/{entryId} {
+      allow read: if isAuthed() && isMember();
+      allow create: if isAuthed() && isMember()
+        && request.resource.data.authorUid == request.auth.uid
+        && isValidScoutEntry(request.resource.data, entryId);
+      allow update: if isAuthed() && isMember()
+        && (isAdmin() || isStrategy() || isDeveloper()
+            || resource.data.authorUid == request.auth.uid)
+
+        && request.resource.data.authorUid == resource.data.authorUid
+        && isValidScoutEntry(request.resource.data, entryId)
+        && isMonotonicUpdate(resource.data, request.resource.data);
+      allow delete: if isAuthed() && isMember()
+        && (resource.data.authorUid == request.auth.uid
+            || isAdmin() || isStrategy() || isDeveloper());
+    }
+
+    match /trexTraitReports/{reportId} {
+      allow read: if isAuthed() && isMember();
+      allow create: if isAuthed() && isMember()
+        && request.resource.data.authorUid == request.auth.uid
+        && isValidTrexTraitReport(request.resource.data, reportId);
+      allow update: if isAuthed() && isMember()
+        && (isAdmin() || isStrategy() || isDeveloper()
+            || resource.data.authorUid == request.auth.uid)
+        && request.resource.data.authorUid == resource.data.authorUid
+        && isValidTrexTraitReport(request.resource.data, reportId)
+        && isMonotonicUpdate(resource.data, request.resource.data);
+      allow delete: if isAuthed() && isMember()
+        && (resource.data.authorUid == request.auth.uid
+            || isAdmin() || isStrategy() || isDeveloper());
+    }
+
+    match /pickLists/{listId} {
+      allow read: if isAuthed() && isMember();
+      allow create: if isAuthed() && isMember()
+        && request.resource.data.authorUid == request.auth.uid
+        && isValidPickList(request.resource.data, listId);
+      allow update: if isAuthed() && isMember()
+        && (isAdmin() || isStrategy() || isDeveloper()
+            || resource.data.authorUid == request.auth.uid
+            || request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['teamNumbers', 'updatedAt', 'updatedAtTs']))
+        && request.resource.data.authorUid == resource.data.authorUid
+        && isValidPickList(request.resource.data, listId)
+        && isMonotonicUpdate(resource.data, request.resource.data);
+      allow delete: if isAuthed() && isMember()
+        && (resource.data.authorUid == request.auth.uid
+            || isAdmin() || isStrategy() || isDeveloper());
+    }
+
+    match /strategyBoards/{boardId} {
+      allow read: if isAuthed() && isMember();
+      allow create: if isAuthed() && isMember()
+        && request.resource.data.authorUid == request.auth.uid
+        && isValidStrategyBoard(request.resource.data, boardId);
+      allow update: if isAuthed() && isMember()
+        && (isAdmin() || isStrategy() || isDeveloper()
+            || resource.data.authorUid == request.auth.uid)
+        && request.resource.data.authorUid == resource.data.authorUid
+        && isValidStrategyBoard(request.resource.data, boardId)
+        && isMonotonicUpdate(resource.data, request.resource.data);
+      allow delete: if isAuthed() && isMember()
+        && (resource.data.authorUid == request.auth.uid
+            || isAdmin() || isStrategy() || isDeveloper());
+    }
+
+    match /pitScoutEntries/{entryId} {
+      allow read: if isAuthed() && isMember();
+      allow create: if isAuthed() && isMember()
+        && request.resource.data.authorUid == request.auth.uid
+        && isValidPitScoutEntry(request.resource.data, entryId);
+      allow update: if isAuthed() && isMember()
+        && (isAdmin() || isStrategy() || isDeveloper()
+            || resource.data.authorUid == request.auth.uid)
+        && request.resource.data.authorUid == resource.data.authorUid
+        && isValidPitScoutEntry(request.resource.data, entryId)
+        && isMonotonicUpdate(resource.data, request.resource.data);
+      allow delete: if isAuthed() && isMember()
+        && (resource.data.authorUid == request.auth.uid
+            || isAdmin() || isStrategy() || isDeveloper());
+    }
+
+    match /prescoutEntries/{entryId} {
+      allow read: if isAuthed() && isMember();
+      allow create: if isAuthed() && isMember()
+        && request.resource.data.authorUid == request.auth.uid
+        && isValidPrescoutEntry(request.resource.data, entryId);
+      allow update: if isAuthed() && isMember()
+        && (isAdmin() || isStrategy() || isDeveloper()
+            || resource.data.authorUid == request.auth.uid)
+        && request.resource.data.authorUid == resource.data.authorUid
+        && isValidPrescoutEntry(request.resource.data, entryId)
+        && isMonotonicUpdate(resource.data, request.resource.data);
+      allow delete: if isAuthed() && isMember()
+        && (resource.data.authorUid == request.auth.uid
+            || isAdmin() || isStrategy() || isDeveloper());
+    }
+
+    match /scoutAssignments/{assignmentId} {
+      allow read: if isAuthed() && isMember();
+      allow create: if isAuthed()
+        && (isAdmin() || isStrategy() || isDeveloper())
+        && request.resource.data.authorUid == request.auth.uid
+        && isValidScoutAssignment(request.resource.data, assignmentId);
+      allow update: if isAuthed()
+        && (isAdmin() || isStrategy() || isDeveloper())
+        && request.resource.data.authorUid == resource.data.authorUid
+        && isValidScoutAssignment(request.resource.data, assignmentId)
+        && isMonotonicUpdate(resource.data, request.resource.data);
+      allow delete: if isAuthed()
+        && (isAdmin() || isStrategy() || isDeveloper());
+    }
+
+    match /scoutShifts/{eventKey} {
+      allow read: if isAuthed() && isMember();
+      allow create: if isAuthed()
+        && (isAdmin() || isStrategy() || isDeveloper())
+        && request.resource.data.authorUid == request.auth.uid
+        && isValidScoutShiftSchedule(request.resource.data, eventKey);
+      allow update: if isAuthed()
+        && (isAdmin() || isStrategy() || isDeveloper())
+        && request.resource.data.authorUid == resource.data.authorUid
+        && isValidScoutShiftSchedule(request.resource.data, eventKey)
+        && isMonotonicUpdate(resource.data, request.resource.data);
+      allow delete: if isAuthed()
+        && (isAdmin() || isStrategy() || isDeveloper());
+    }
+
+    match /shiftTrades/{tradeId} {
+      allow read: if isAuthed() && isMember();
+      allow create: if isAuthed() && isMember()
+        && request.resource.data.requesterUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && isValidShiftTrade(request.resource.data, tradeId);
+      allow update: if isAuthed() && isMember()
+        && isValidShiftTrade(request.resource.data, tradeId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'updatedAt', 'updatedAtTs'])
+        && (
+          (resource.data.requesterUid == request.auth.uid
+            && resource.data.status == 'pending'
+            && request.resource.data.status == 'cancelled')
+          || (resource.data.targetUid == request.auth.uid
+            && resource.data.status == 'pending'
+            && request.resource.data.status in ['accepted', 'declined'])
+        );
+      allow delete: if isAuthed() && isMember()
+        && (resource.data.requesterUid == request.auth.uid
+            || isAdmin() || isStrategy() || isDeveloper());
+    }
+
+    match /accuracyAlerts/{entryId} {
+      allow read: if isAuthed()
+        && resource.data.authorUid == request.auth.uid;
+      allow update: if isAuthed()
+        && resource.data.authorUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['acknowledged'])
+        && request.resource.data.acknowledged is bool
+        && request.resource.data.acknowledged == true;
+      allow create, delete: if false;
+    }
+
+    match /bugReports/{reportId} {
+      allow read: if isAuthed() && (isAdmin() || isDeveloper());
+      allow create: if isAuthed() && isMember()
+        && request.resource.data.reporterUid == request.auth.uid
+        && isValidBugReport(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    match /traitTables/{tableId} {
+      allow read: if isAuthed() && isMember();
+      allow create, update: if isAuthed()
+        && (isAdmin() || isStrategy() || isDeveloper())
+        && isValidTraitTable(request.resource.data, tableId);
+      allow delete: if isAuthed() && (isAdmin() || isStrategy());
+    }
+
+    match /postMatchReports/{reportId} {
+      allow read: if isAuthed() && isMember();
+      allow create, update: if isAuthed()
+        && (isAdmin() || isStrategy() || isDeveloper())
+        && isValidPostMatchReport(request.resource.data, reportId);
+      allow delete: if isAuthed() && (isAdmin() || isStrategy());
+    }
+
+    match /assistantSummaries/{summaryId} {
+      allow read: if isAuthed() && isMember();
+      allow create, update: if isAuthed()
+        && (isAdmin() || isStrategy() || isDeveloper())
+        && isValidAssistantSummary(request.resource.data, summaryId);
+      allow delete: if isAuthed() && (isAdmin() || isStrategy());
+    }
+
+    match /telemetry/{eventId} {
+      allow read: if false;
+      allow create: if isAuthed()
+        && isValidTelemetry(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    match /telemetryRollup/{docId} {
+      allow read: if isAuthed() && isDeveloper();
+      allow write: if false;
+    }
+
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      let path = /databases/$(database)/documents/userProfiles/$(request.auth.uid);
+      return exists(path) && hasAdminRole(get(path).data);
+    }
+
+    function hasAdminRole(data) {
+      return (data.roles is list && data.roles.hasAny(['admin'])) ||
+             (data.role is string && data.role == 'admin');
+    }
+
+    function isStrategy() {
+      let path = /databases/$(database)/documents/userProfiles/$(request.auth.uid);
+      return exists(path) && hasStrategyRole(get(path).data);
+    }
+
+    function hasStrategyRole(data) {
+      return (data.roles is list && data.roles.hasAny(['strategy'])) ||
+             (data.role is string && data.role == 'strategy');
+    }
+
+    function isDeveloper() {
+      let path = /databases/$(database)/documents/userProfiles/$(request.auth.uid);
+      return exists(path) && hasDeveloperRole(get(path).data);
+    }
+
+    function hasDeveloperRole(data) {
+      return (data.roles is list && data.roles.hasAny(['developer'])) ||
+             (data.role is string && data.role == 'developer');
+    }
+
+    function isMember() {
+      let path = /databases/$(database)/documents/userProfiles/$(request.auth.uid);
+      return exists(path) && hasMemberRole(get(path).data);
+    }
+
+    function hasMemberRole(data) {
+      return (data.roles is list
+              && data.roles.hasAny(['scouter', 'strategy', 'admin', 'developer'])) ||
+             (data.role is string
+              && data.role in ['scouter', 'strategy', 'admin', 'developer']);
+    }
+
+    function isValidNewProfile(data) {
+      return data.uid == request.auth.uid
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'roles', 'createdAt'])
+        && data.roles is list
+        && data.roles.size() == 1
+        && (data.roles.hasAll(['scouter']) || data.roles.hasAll(['viewer']))
+        && data.displayName is string
+        && data.displayName.size() <= 256
+        && (!('email' in data) || (data.email is string && data.email.size() <= 320))
+        && (!('createdAt' in data) || isSaneTimestamp(data.createdAt));
+    }
+
+    function isValidAdminProfileCreate(data) {
+      return data.keys().hasOnly(['roles'])
+        && data.roles is list
+        && data.roles.size() >= 1
+        && data.roles.size() <= 5
+        && data.roles.hasOnly(['viewer', 'scouter', 'strategy', 'admin',
+            'developer']);
+    }
+
+    function isValidProfileUpdate(data) {
+      return request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['displayName', 'email', 'roles', 'canonicalUid',
+                'linkedEmails'])
+
+        && (!request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['roles'])
+            || ('roles' in data
+                && data.roles is list
+                && data.roles.size() >= 1
+                && data.roles.size() <= 5
+                && data.roles.hasOnly(['viewer', 'scouter', 'strategy',
+                    'admin', 'developer'])))
+        && (!('displayName' in data)
+            || (data.displayName is string && data.displayName.size() <= 256))
+        && (!('email' in data)
+            || (data.email is string && data.email.size() <= 320))
+
+        && (!('canonicalUid' in data)
+            || (data.canonicalUid is string
+                && data.canonicalUid.size() > 0
+                && data.canonicalUid.size() <= 128))
+        && (!('linkedEmails' in data)
+            || (data.linkedEmails is list
+                && data.linkedEmails.size() <= 10));
+    }
+
+    function isValidScoutEntry(data, entryId) {
+      return data.keys().hasOnly(['id', 'matchId', 'teamNumber', 'alliance',
+              'notes', 'authorUid', 'authorDisplayName', 'updatedAt',
+              'updatedAtTs', 'byPhase', 'fieldValues', 'tbaMatchKey',
+              'strokesByPhase', 'addedManually'])
+        && data.id == entryId
+        && data.matchId is string
+        && data.matchId.size() > 0
+        && data.matchId.size() <= 128
+        && data.teamNumber is int
+        && data.teamNumber >= 1
+        && data.teamNumber <= 99999
+        && data.alliance in ['Red', 'Blue']
+        && data.notes is string
+        && data.notes.size() <= 4096
+        && data.authorUid is string
+        && data.authorUid.size() > 0
+        && data.authorUid.size() <= 128
+        && data.authorDisplayName is string
+        && data.authorDisplayName.size() <= 128
+        && isSaneTimestamp(data.updatedAt)
+        && hasBoundedUpdatedAtTs(data)
+        && data.byPhase is map
+
+        && data.byPhase.size() <= 24
+        && (!('fieldValues' in data)
+            || (data.fieldValues is map && data.fieldValues.size() <= 200))
+        && (!('tbaMatchKey' in data)
+            || (data.tbaMatchKey is string && data.tbaMatchKey.size() <= 32))
+        && (!('strokesByPhase' in data)
+            || (data.strokesByPhase is map && data.strokesByPhase.size() <= 24))
+
+        && (!('addedManually' in data) || data.addedManually is bool);
+    }
+
+    function isValidTrexTraitReport(data, reportId) {
+      return data.keys().hasOnly(['id', 'trait', 'teamNumber', 'matchNumber',
+              'eventName', 'report', 'strokes', 'authorUid',
+              'authorDisplayName', 'updatedAt', 'updatedAtTs'])
+        && data.id == reportId
+        && data.trait in ['autonomous', 'defense', 'driverSkill',
+              'fuelScoring', 'passingPushingStealing']
+        && data.teamNumber is int
+        && data.teamNumber >= 1
+        && data.teamNumber <= 99999
+        && data.matchNumber is int
+        && data.matchNumber >= 0
+        && data.matchNumber <= 9999
+        && data.eventName is string
+        && data.eventName.size() <= 128
+        && data.report is string
+        && data.report.size() <= 4096
+        && (!('strokes' in data)
+            || (data.strokes is list && data.strokes.size() <= 300))
+        && data.authorUid is string
+        && data.authorUid.size() > 0
+        && data.authorUid.size() <= 128
+        && data.authorDisplayName is string
+        && data.authorDisplayName.size() <= 128
+        && isSaneTimestamp(data.updatedAt)
+        && hasBoundedUpdatedAtTs(data);
+    }
+
+    function isValidAssistantSummary(data, summaryId) {
+      return data.keys().hasOnly(['cacheKey', 'text', 'model', 'source',
+              'coverage', 'generatedAt', 'authorUid', 'updatedAt',
+              'updatedAtTs'])
+        && data.cacheKey is string
+        && data.cacheKey.size() > 0
+        && data.cacheKey.size() <= 1024
+        && data.text is string
+        && data.text.size() > 0
+
+        && data.text.size() <= 8000
+        && data.model is string
+        && data.model.size() <= 128
+        && data.source is string
+        && data.source in ['openRouter', 'local']
+
+        && (!data.keys().hasAny(['coverage']) || data.coverage is int)
+        && isSaneTimestamp(data.generatedAt)
+        && data.authorUid is string
+        && data.authorUid.size() > 0
+        && data.authorUid.size() <= 128
+        && isSaneTimestamp(data.updatedAt)
+        && hasBoundedUpdatedAtTs(data);
+    }
+
+    function isValidTraitTable(data, tableId) {
+      return data.keys().hasOnly(['id', 'eventKey', 'matchId', 'cells',
+              'authorUid', 'authorDisplayName', 'updatedAt', 'updatedAtTs'])
+        && data.id == tableId
+        && data.eventKey is string
+        && data.eventKey.size() > 0
+        && data.eventKey.size() <= 64
+        && data.matchId is string
+        && data.matchId.size() > 0
+        && data.matchId.size() <= 64
+        && data.cells is map
+
+        && data.cells.size() <= 12
+        && data.authorUid is string
+        && data.authorUid.size() > 0
+        && data.authorUid.size() <= 128
+        && data.authorDisplayName is string
+        && data.authorDisplayName.size() <= 128
+        && isSaneTimestamp(data.updatedAt)
+        && hasBoundedUpdatedAtTs(data);
+    }
+
+    function isValidPostMatchReport(data, reportId) {
+      return data.keys().hasOnly(['id', 'eventKey', 'matchId', 'auto',
+              'teleop', 'endgame', 'notes',
+              'authorUid', 'authorDisplayName', 'updatedAt', 'updatedAtTs'])
+        && data.id == reportId
+        && data.eventKey is string
+        && data.eventKey.size() > 0
+        && data.eventKey.size() <= 64
+        && data.matchId is string
+        && data.matchId.size() > 0
+        && data.matchId.size() <= 64
+
+        && data.auto is string
+        && data.auto.size() <= 4000
+        && data.teleop is string
+        && data.teleop.size() <= 4000
+        && data.endgame is string
+        && data.endgame.size() <= 4000
+        && data.notes is string
+        && data.notes.size() <= 4000
+        && data.authorUid is string
+        && data.authorUid.size() > 0
+        && data.authorUid.size() <= 128
+        && data.authorDisplayName is string
+        && data.authorDisplayName.size() <= 128
+        && isSaneTimestamp(data.updatedAt)
+        && hasBoundedUpdatedAtTs(data);
+    }
+
+    function isValidPickList(data, listId) {
+      return data.keys().hasOnly(['id', 'name', 'teamNumbers', 'authorUid',
+              'authorDisplayName', 'updatedAt', 'updatedAtTs'])
+        && data.id == listId
+        && data.name is string
+        && data.name.size() <= 128
+        && data.teamNumbers is list
+        && data.teamNumbers.size() <= 64
+        && data.authorUid is string
+        && data.authorUid.size() > 0
+        && data.authorUid.size() <= 128
+        && data.authorDisplayName is string
+        && data.authorDisplayName.size() <= 128
+        && isSaneTimestamp(data.updatedAt)
+        && hasBoundedUpdatedAtTs(data);
+    }
+
+    function isValidStrategyBoard(data, boardId) {
+      return data.keys().hasOnly(['id', 'eventName', 'matchNumber', 'alliance',
+              'teamNumbers', 'selectedPhase', 'selectedTool',
+              'selectedFieldId', 'selectedRobotTeam', 'updatedAt',
+              'updatedAtTs', 'strokesByPhase', 'markersByPhase',
+              'notesByPhase', 'authorUid', 'authorDisplayName'])
+        && data.id == boardId
+        && data.matchNumber is int
+        && data.matchNumber >= 1
+        && data.matchNumber <= 999
+        && data.alliance in ['Red', 'Blue']
+        && data.selectedFieldId is string
+        && data.selectedFieldId.size() <= 64
+        && (!('selectedRobotTeam' in data)
+            || data.selectedRobotTeam == null
+            || data.selectedRobotTeam is int
+            && data.selectedRobotTeam >= 1
+            && data.selectedRobotTeam <= 99999)
+        && data.authorUid is string
+        && data.authorUid.size() > 0
+        && data.authorUid.size() <= 128
+        && data.authorDisplayName is string
+        && data.authorDisplayName.size() <= 128
+        && isSaneTimestamp(data.updatedAt)
+        && hasBoundedUpdatedAtTs(data)
+        && data.teamNumbers is list
+        && data.teamNumbers.size() <= 12
+        && data.strokesByPhase is map
+        && data.strokesByPhase.size() <= 24
+        && data.markersByPhase is map
+        && data.markersByPhase.size() <= 24
+        && data.notesByPhase is map
+        && data.notesByPhase.size() <= 24
+        && data.eventName is string
+        && data.eventName.size() <= 256
+        && data.selectedPhase is string
+        && data.selectedPhase.size() <= 32
+        && data.selectedTool is string
+        && data.selectedTool.size() <= 32;
+    }
+
+    function isValidPitScoutEntry(data, entryId) {
+      return data.keys().hasOnly(['id', 'teamNumber', 'eventKey',
+              'fieldValues', 'authorUid', 'authorDisplayName', 'updatedAt',
+              'updatedAtTs', 'photoKeys'])
+        && data.id == entryId
+        && data.teamNumber is int
+        && data.teamNumber >= 1
+        && data.teamNumber <= 99999
+        && data.fieldValues is map
+        && data.fieldValues.size() <= 200
+        && data.authorUid is string
+        && data.authorUid.size() > 0
+        && data.authorUid.size() <= 128
+        && data.authorDisplayName is string
+        && data.authorDisplayName.size() <= 128
+        && isSaneTimestamp(data.updatedAt)
+        && hasBoundedUpdatedAtTs(data)
+        && data.eventKey is string
+        && data.eventKey.size() <= 64
+
+        && (!data.keys().hasAny(['photoKeys'])
+            || (data.photoKeys is list && data.photoKeys.size() <= 3));
+    }
+
+    function isValidPrescoutEntry(data, entryId) {
+      return data.keys().hasOnly(['id', 'teamNumber', 'eventKey',
+              'fieldValues', 'authorUid', 'authorDisplayName', 'updatedAt',
+              'updatedAtTs'])
+        && data.id == entryId
+        && data.teamNumber is int
+        && data.teamNumber >= 1
+        && data.teamNumber <= 99999
+        && data.fieldValues is map
+        && data.fieldValues.size() <= 200
+        && data.authorUid is string
+        && data.authorUid.size() > 0
+        && data.authorUid.size() <= 128
+        && data.authorDisplayName is string
+        && data.authorDisplayName.size() <= 128
+        && isSaneTimestamp(data.updatedAt)
+        && hasBoundedUpdatedAtTs(data)
+        && data.eventKey is string
+        && data.eventKey.size() <= 64;
+    }
+
+    function isValidScoutAssignment(data, assignmentId) {
+      return data.keys().hasOnly(['id', 'matchKey', 'matchNumber', 'station',
+              'scouterUid', 'scouterName', 'authorUid', 'authorDisplayName',
+              'updatedAt', 'updatedAtTs'])
+        && data.id == assignmentId
+        && data.matchKey is string
+        && data.matchKey.size() > 0
+        && data.matchKey.size() <= 64
+        && data.matchNumber is int
+        && data.matchNumber >= 0
+        && data.matchNumber <= 999
+        && data.station in ['red1', 'red2', 'red3', 'blue1', 'blue2', 'blue3']
+        && data.scouterUid is string
+        && data.scouterUid.size() <= 128
+        && data.scouterName is string
+        && data.scouterName.size() <= 128
+        && data.authorUid is string
+        && data.authorUid.size() > 0
+        && data.authorUid.size() <= 128
+        && data.authorDisplayName is string
+        && data.authorDisplayName.size() <= 128
+        && isSaneTimestamp(data.updatedAt)
+        && hasBoundedUpdatedAtTs(data);
+    }
+
+    function isValidScoutShiftSchedule(data, eventId) {
+      return data.keys().hasOnly(['id', 'eventKey', 'matchCount', 'roster',
+              'rotations', 'cellOverrides', 'authorUid', 'authorDisplayName',
+              'updatedAt', 'updatedAtTs'])
+        && data.id == eventId
+        && data.eventKey is string
+        && data.eventKey.size() > 0
+        && data.eventKey.size() <= 64
+        && data.matchCount is int
+        && data.matchCount >= 0
+        && data.matchCount <= 999
+        && data.roster is list
+        && data.roster.size() <= 64
+        && data.rotations is list
+        && data.rotations.size() <= 64
+        && data.cellOverrides is list
+        && data.cellOverrides.size() <= 4096
+        && data.authorUid is string
+        && data.authorUid.size() > 0
+        && data.authorUid.size() <= 128
+        && data.authorDisplayName is string
+        && data.authorDisplayName.size() <= 128
+        && isSaneTimestamp(data.updatedAt)
+        && hasBoundedUpdatedAtTs(data);
+    }
+
+    function isValidShiftTrade(data, tradeId) {
+      return data.keys().hasOnly(['id', 'eventKey', 'requesterUid',
+              'requesterDisplayName', 'targetUid', 'targetDisplayName',
+              'requesterBlock', 'targetBlock', 'status', 'createdAt',
+              'updatedAt', 'updatedAtTs'])
+        && data.id == tradeId
+        && data.eventKey is string
+        && data.eventKey.size() > 0
+        && data.eventKey.size() <= 64
+        && data.requesterUid is string
+        && data.requesterUid.size() > 0
+        && data.requesterUid.size() <= 128
+        && data.targetUid is string
+        && data.targetUid.size() > 0
+        && data.targetUid.size() <= 128
+        && data.requesterUid != data.targetUid
+        && data.requesterDisplayName is string
+        && data.requesterDisplayName.size() <= 128
+        && data.targetDisplayName is string
+        && data.targetDisplayName.size() <= 128
+        && isValidShiftBlock(data.requesterBlock)
+        && (!('targetBlock' in data) || isValidShiftBlock(data.targetBlock))
+        && data.status in ['pending', 'accepted', 'declined', 'cancelled']
+        && isSaneTimestamp(data.createdAt)
+        && isSaneTimestamp(data.updatedAt)
+
+        && (!('updatedAtTs' in data) || hasBoundedUpdatedAtTs(data));
+    }
+
+    function isValidShiftBlock(block) {
+      return block is map
+        && block.keys().hasOnly(['startMatch', 'endMatch'])
+        && block.startMatch is int
+        && block.startMatch >= 1
+        && block.endMatch is int
+        && block.endMatch >= block.startMatch;
+    }
+
+    function isValidBugReport(data) {
+      return data.keys().hasOnly(['reporterUid', 'reporterName', 'title',
+              'body', 'status', 'createdAt', 'appVersion', 'platform',
+              'osVersion', 'deviceInfo', 'roles', 'id', 'kind', 'area',
+              'impact'])
+        && data.reporterUid is string
+        && data.reporterUid.size() > 0
+        && data.reporterUid.size() <= 128
+        && data.reporterName is string
+        && data.reporterName.size() <= 128
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 200
+        && data.body is string
+        && data.body.size() <= 4096
+        && data.status == 'new'
+        && isSaneTimestamp(data.createdAt)
+        && (!('appVersion' in data)
+            || (data.appVersion is string && data.appVersion.size() <= 64))
+        && (!('platform' in data)
+            || (data.platform is string && data.platform.size() <= 64))
+        && (!('osVersion' in data)
+            || (data.osVersion is string && data.osVersion.size() <= 128))
+        && (!('deviceInfo' in data)
+            || (data.deviceInfo is string && data.deviceInfo.size() <= 256))
+        && (!('roles' in data)
+            || (data.roles is string && data.roles.size() <= 128))
+        && (!('kind' in data) || data.kind in ['bug', 'feedback'])
+        && (!('area' in data)
+            || (data.area is string && data.area.size() <= 64))
+        && (!('impact' in data)
+            || (data.impact is string && data.impact.size() <= 64));
+    }
+
+    function isValidTelemetry(data) {
+      return data.keys().hasOnly(['id', 'type', 'deviceId', 'appVersion',
+              'platform', 'osVersion', 'locale', 'detail', 'createdAt'])
+        && data.id is string
+        && data.id.size() > 0
+        && data.id.size() <= 64
+        && data.type is string
+        && data.type.size() > 0
+        && data.type.size() <= 64
+        && data.deviceId is string
+        && data.deviceId.size() > 0
+        && data.deviceId.size() <= 64
+        && isSaneTimestamp(data.createdAt)
+        && (!('appVersion' in data)
+            || (data.appVersion is string && data.appVersion.size() <= 64))
+        && (!('platform' in data)
+            || (data.platform is string && data.platform.size() <= 64))
+        && (!('osVersion' in data)
+            || (data.osVersion is string && data.osVersion.size() <= 128))
+        && (!('locale' in data)
+            || (data.locale is string && data.locale.size() <= 32))
+        && (!('detail' in data)
+            || (data.detail is string && data.detail.size() <= 128));
+    }
+
+    function hasBoundedUpdatedAtTs(data) {
+      return data.updatedAtTs is timestamp
+        && data.updatedAtTs <= request.time + duration.value(5, 'm');
+    }
+
+    function isSaneTimestamp(value) {
+      return value is string
+        && value.size() >= 20
+        && value.size() <= 64
+        && value >= '2020'
+        && value < '2100';
+    }
+
+    function isMonotonicUpdate(prev, next) {
+      return ('updatedAtTs' in prev)
+        ? ('updatedAtTs' in next && next.updatedAtTs >= prev.updatedAtTs)
+        : next.updatedAt >= prev.updatedAt;
+    }
+  }
+}

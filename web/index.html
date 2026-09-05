@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Spectrum Strategy: FRC strategy, scouting, and prematch analysis.">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Spectrum Strategy">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Spectrum Strategy</title>
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+  <script>
+    (function() {
+      function prime(name, store, options, retried) {
+        try {
+          var req = indexedDB.open(name, 1);
+          req.onupgradeneeded = function() {
+            if (!req.result.objectStoreNames.contains(store)) {
+              req.result.createObjectStore(store, options);
+            }
+          };
+          req.onsuccess = function() {
+            var healthy = req.result.objectStoreNames.contains(store);
+            req.result.close();
+            if (!healthy && !retried) {
+              var del = indexedDB.deleteDatabase(name);
+              del.onsuccess = function() { prime(name, store, options, true); };
+            }
+          };
+        } catch (e) {}
+      }
+      prime('firebaseLocalStorageDb', 'firebaseLocalStorage',
+          { keyPath: 'fbase_key' }, false);
+      prime('firebase-heartbeat-database', 'firebase-heartbeat-store',
+          undefined, false);
+      // This misnamed, empty database is a leftover; the SDK never opens it.
+      try { indexedDB.deleteDatabase('firebase-heartbeat-storage'); } catch (e) {}
+    })();
+  </script>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

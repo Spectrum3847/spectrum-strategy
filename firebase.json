@@ -1,0 +1,147 @@
+{
+  "hosting": [
+    {
+      "site": "frcspectrumstrategy",
+      "public": "build/web",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/flutter_service_worker.js",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/version.json",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache" },
+            { "key": "Access-Control-Allow-Origin", "value": "*" }
+          ]
+        },
+        {
+          "source": "**",
+          "headers": [
+            { "key": "X-Content-Type-Options", "value": "nosniff" },
+            { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+            { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+            { "key": "Content-Security-Policy", "value": "frame-ancestors 'self'" },
+            { "key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://www.thebluealliance.com https://*.googleusercontent.com https://*.gstatic.com; connect-src 'self' https://*.googleapis.com https://api.statbotics.io https://www.thebluealliance.com wss://*.firebaseio.com https://us-central1-spectrumtasks-81c63.cloudfunctions.net; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://apis.google.com; frame-ancestors 'self'; base-uri 'self'; object-src 'none'" }
+          ]
+        }
+      ]
+    },
+    {
+      "site": "frcspectrumstrategy-staging",
+      "public": "build/web",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/flutter_service_worker.js",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/version.json",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache" },
+            { "key": "Access-Control-Allow-Origin", "value": "*" }
+          ]
+        },
+        {
+          "source": "**",
+          "headers": [
+            { "key": "X-Content-Type-Options", "value": "nosniff" },
+            { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+            { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+            { "key": "Content-Security-Policy", "value": "frame-ancestors 'self'" },
+            { "key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://www.thebluealliance.com https://*.googleusercontent.com https://*.gstatic.com; connect-src 'self' https://*.googleapis.com https://api.statbotics.io https://www.thebluealliance.com wss://*.firebaseio.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://apis.google.com; frame-ancestors 'self'; base-uri 'self'; object-src 'none'" }
+          ]
+        }
+      ]
+    },
+    {
+      "site": "frcspectrumstrategy-preview",
+      "public": "build/web",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/flutter_service_worker.js",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/version.json",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache" },
+            { "key": "Access-Control-Allow-Origin", "value": "*" }
+          ]
+        },
+        {
+          "source": "**",
+          "headers": [
+            { "key": "X-Content-Type-Options", "value": "nosniff" },
+            { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+            { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+            { "key": "Content-Security-Policy", "value": "frame-ancestors 'self'" },
+            { "key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://www.thebluealliance.com https://*.googleusercontent.com https://*.gstatic.com; connect-src 'self' https://*.googleapis.com https://api.statbotics.io https://www.thebluealliance.com wss://*.firebaseio.com https://us-central1-spectrumtasks-81c63.cloudfunctions.net; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://apis.google.com; frame-ancestors 'self'; base-uri 'self'; object-src 'none'" }
+          ]
+        }
+      ]
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "frcspectrumstrategy",
+          "appId": "1:568915292867:android:f6a2bc0ab029850eeaa876",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "frcspectrumstrategy",
+          "appId": "1:568915292867:ios:5b0fb060195a40d1eaa876",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "frcspectrumstrategy",
+          "configurations": {
+            "android": "1:568915292867:android:f6a2bc0ab029850eeaa876",
+            "ios": "1:568915292867:ios:5b0fb060195a40d1eaa876",
+            "macos": "1:568915292867:ios:5b0fb060195a40d1eaa876",
+            "web": "1:568915292867:web:c00f045cbc27452aeaa876",
+            "windows": "1:568915292867:web:c9260180c61561fdeaa876"
+          }
+        }
+      }
+    }
+  }
+}

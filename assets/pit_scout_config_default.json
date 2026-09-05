@@ -1,0 +1,206 @@
+{
+  "title": "Pit Scouting",
+  "page_title": "Robot Inspection",
+  "delimiter": "\t",
+  "revision": 1,
+  "sections": [
+    {
+      "name": "Drivetrain",
+      "fields": [
+        {
+          "title": "Drivetrain Type",
+          "description": "The type of drivetrain used by this robot.",
+          "type": "select",
+          "required": true,
+          "code": "drivetrainType",
+          "formResetBehavior": "reset",
+          "defaultValue": "tank",
+          "choices": {
+            "tank": "Tank / Skid Steer",
+            "swerve": "Swerve",
+            "mecanum": "Mecanum",
+            "omni": "Omni",
+            "other": "Other"
+          }
+        },
+        {
+          "title": "Drive Motor",
+          "description": "Primary drive motor type.",
+          "type": "select",
+          "required": false,
+          "code": "driveMotor",
+          "formResetBehavior": "reset",
+          "defaultValue": "neo",
+          "choices": {
+            "neo": "NEO",
+            "falcon": "Falcon 500",
+            "kraken": "Kraken X60",
+            "cim": "CIM",
+            "minicim": "Mini CIM",
+            "other": "Other"
+          }
+        },
+        {
+          "title": "Weight (lbs)",
+          "description": "Approximate robot weight in pounds.",
+          "type": "number",
+          "required": false,
+          "code": "weightLbs",
+          "formResetBehavior": "reset",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 200
+        },
+        {
+          "title": "Frame Dimensions",
+          "description": "Frame perimeter dimensions, e.g. 28x30.",
+          "type": "text",
+          "required": false,
+          "code": "frameDimensions",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        },
+        {
+          "title": "Can they fit under the trench?",
+          "description": "Yes if the robot fits under the trench, no if it plays over the bump.",
+          "type": "boolean",
+          "required": false,
+          "code": "trenchFit",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        },
+        {
+          "title": "Launcher Type",
+          "description": "Launcher type, for the match info Robot Type column (#1385).",
+          "type": "text",
+          "required": false,
+          "code": "launcherType",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        }
+      ]
+    },
+    {
+      "name": "Capabilities",
+      "fields": [
+        {
+          "title": "Can Climb",
+          "description": "Can the robot climb at the end of the match?",
+          "type": "boolean",
+          "required": false,
+          "code": "canClimb",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        },
+        {
+          "title": "Climb Height",
+          "description": "Maximum climb height this robot can achieve.",
+          "type": "select",
+          "required": false,
+          "code": "climbHeight",
+          "formResetBehavior": "reset",
+          "defaultValue": "none",
+          "choices": {
+            "none": "None",
+            "low": "Low",
+            "medium": "Medium",
+            "high": "High"
+          }
+        },
+        {
+          "title": "Can Score",
+          "description": "Can the robot score game pieces?",
+          "type": "boolean",
+          "required": false,
+          "code": "canScore",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        },
+        {
+          "title": "Autonomous Routines",
+          "description": "Number of autonomous routines available.",
+          "type": "counter",
+          "required": false,
+          "code": "autoRoutines",
+          "formResetBehavior": "reset",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 20,
+          "buttons": [1]
+        },
+        {
+          "title": "Intake Type",
+          "description": "How does the robot pick up game pieces?",
+          "type": "select",
+          "required": false,
+          "code": "intakeType",
+          "formResetBehavior": "reset",
+          "defaultValue": "none",
+          "choices": {
+            "none": "None",
+            "ground": "Ground Intake",
+            "human": "Human Player",
+            "both": "Both"
+          }
+        },
+        {
+          "title": "Can Play Defense",
+          "description": "Is this robot capable of playing defense effectively?",
+          "type": "boolean",
+          "required": false,
+          "code": "canDefend",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        },
+        {
+          "title": "Programming Language",
+          "description": "Primary programming language used.",
+          "type": "select",
+          "required": false,
+          "code": "programmingLang",
+          "formResetBehavior": "reset",
+          "defaultValue": "java",
+          "choices": {
+            "java": "Java",
+            "cpp": "C++",
+            "python": "Python",
+            "labview": "LabVIEW",
+            "other": "Other"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notes",
+      "fields": [
+        {
+          "title": "Strengths",
+          "description": "What does this robot do particularly well?",
+          "type": "text",
+          "required": false,
+          "code": "strengths",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        },
+        {
+          "title": "Weaknesses",
+          "description": "Known limitations or failure points to watch for.",
+          "type": "text",
+          "required": false,
+          "code": "weaknesses",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        },
+        {
+          "title": "Additional Notes",
+          "description": "Anything else worth knowing about this robot.",
+          "type": "text",
+          "required": false,
+          "code": "additionalNotes",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+name: spectrumstrategy
+description: "FRC strategy / scouting / prematch app. Ships to iOS, Android, and desktop."
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  google_fonts: ^8.2.1
+  cloud_firestore: ^6.9.0
+  firebase_auth: ^6.6.1
+  firebase_core: ^4.14.0
+
+  cloud_functions: ^6.4.0
+  google_sign_in: ^7.2.0
+  http: ^1.2.2
+  crypto: ^3.0.6
+
+  firestore_client:
+    git:
+      url: https://github.com/Project516/firestore_client.git
+      ref: v0.4.0
+
+  tba_client:
+    git:
+      url: https://github.com/Project516/tba_client.git
+      ref: v0.9.0
+  statbotics_client:
+    git:
+      url: https://github.com/Project516/statbotics_client.git
+      ref: v0.4.0
+  mobile_scanner: ^7.4.0
+
+  two_dimensional_scrollables: ^0.5.4
+
+  pub_semver: ^2.2.1
+  path_provider: ^2.1.6
+
+  ffi: ^2.1.4
+  win32: ^6.4.0
+  qr_flutter: ^4.1.0
+  share_plus: ^13.3.0
+  file_picker: ^12.0.0
+  shared_preferences: ^2.5.5
+  uuid: ^4.6.0
+  package_info_plus: ^10.2.1
+  device_info_plus: ^13.2.0
+  flutter_markdown_plus: ^1.0.12
+  url_launcher: ^6.3.1
+  image_picker: ^1.1.2
+
+  flutter_image_compress: ^2.5.1
+
+  webview_flutter: ^4.14.1
+
+  web: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  fake_async: ^1.3.3
+  fake_cloud_firestore: ^4.2.0
+  firebase_auth_mocks: ^0.15.1
+  flutter_lints: ^6.0.0
+  google_sign_in_platform_interface: ^3.1.0
+  mock_exceptions: ^0.8.2
+  plugin_platform_interface: ^2.1.8
+
+flutter:
+
+  uses-material-design: true
+  assets:
+    - assets/fields/wpilib/
+    - assets/scout_config_default.json
+    - assets/pit_scout_config_default.json
+    - assets/prescout_config_default.json
+    - assets/fonts/OFL.txt
+    - docs/
+
+  fonts:
+    - family: Overpass
+      fonts:
+        - asset: assets/fonts/Overpass-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Overpass-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Overpass-Bold.ttf
+          weight: 700
