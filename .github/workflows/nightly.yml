@@ -600,9 +600,10 @@ jobs:
         run: |
           flutter pub get
           build_date="$(date -u +%Y-%m-%d)"
-          flutter build web --release --wasm --base-href / \
+          flutter build web --release --wasm --no-web-resources-cdn --base-href / \
             --dart-define=BUILD_DATE="$build_date" \
             --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
+          python3 scripts/web/gen_sw.py build/web
 
       - name: Deploy to the staging Hosting site
         env:
