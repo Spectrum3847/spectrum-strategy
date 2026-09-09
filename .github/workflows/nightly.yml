@@ -248,6 +248,12 @@ jobs:
             --icon-url "$SITE_URL/icon.png" \
             --description "Nightly build $SOURCE_SHA"
 
+      - name: Set up Node
+
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+
       - name: Install the Firebase CLI
         run: |
           npm ci --ignore-scripts --prefix scripts/firebase-deploy
