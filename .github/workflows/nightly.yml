@@ -642,6 +642,18 @@ jobs:
           echo "Staging live: https://frcspectrumstrategy-staging.web.app"
           rm -f "$RUNNER_TEMP/sa.json"
 
+      - name: Verify the deployed site serves sw.js
+
+        env:
+          SITE_URL: https://frcspectrumstrategy-staging.web.app
+        run: |
+          sleep 10
+          curl -fsS --retry 5 --retry-delay 3 --retry-connrefused "$SITE_URL/sw.js" \
+            | grep -q "spectrum-.*-[0-9a-f]"
+          status="$(curl -sS --retry 5 --retry-delay 3 --retry-connrefused \
+            -o /dev/null -w '%{http_code}' "$SITE_URL/flutter_service_worker.js")"
+          [ "$status" = "404" ]
+
   cleanup-docs-artifact:
 
     needs: [sync, ios, android, desktop, staging-web]
