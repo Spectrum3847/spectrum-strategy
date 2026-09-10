@@ -40,7 +40,7 @@ concurrency:
 
 env:
   SOURCE_REPO: Spectrum3847/SpectrumStrategy
-  FLUTTER_VERSION: 3.47.2
+  FLUTTER_VERSION: 3.47.3
   RELEASE_TAG: pr-builds
   ASSET_PREFIX: SpectrumStrategy-pr${{ inputs.pr }}
   SITE: frcspectrumstrategy-pr
