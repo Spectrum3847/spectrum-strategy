@@ -41,7 +41,8 @@ concurrency:
 env:
   SOURCE_REPO: Spectrum3847/SpectrumStrategy
   FLUTTER_VERSION: 3.47.2
-  RELEASE_TAG: pr-${{ inputs.pr }}
+  RELEASE_TAG: pr-builds
+  ASSET_PREFIX: SpectrumStrategy-pr${{ inputs.pr }}
   SITE: frcspectrumstrategy-pr
   SITE_URL: https://frcspectrumstrategy-pr.web.app
 
@@ -61,8 +62,18 @@ jobs:
           ACTION: ${{ inputs.action }}
           TARGETS: ${{ inputs.targets }}
           SHA: ${{ inputs.sha }}
+          PR: ${{ inputs.pr }}
         run: |
           set -euo pipefail
+
+          if ! [[ "$PR" =~ ^[0-9]+$ ]]; then
+            echo "::error::pr must be a number, got '$PR'"
+            exit 1
+          fi
+          if [ -n "$SHA" ] && ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::sha must be a full 40-character commit id, got '$SHA'"
+            exit 1
+          fi
           ios=false
           desktop=false
           if [ "$ACTION" = "build" ]; then
@@ -95,19 +106,18 @@ jobs:
           gh api --method PATCH "repos/$SOURCE_REPO/issues/comments/$COMMENT_ID" \
             -f body="$body" --silent
 
-      - name: Ensure the PR release exists
+      - name: Ensure the rolling PR builds release exists
         if: inputs.action == 'build'
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ inputs.pr }}
         run: |
           set -euo pipefail
-          NOTES="Test builds of pull request $PR, rebuilt on request. Every rebuild replaces these files. The IPA installs through the PR builds source in AltStore, SideStore or LiveContainer; see docs/altstore.md in the app."
+          NOTES="Test builds of open pull requests, one set of files per PR, rebuilt on request and removed when the PR is merged or closed. The IPAs install through the PR builds source in AltStore, SideStore or LiveContainer."
           gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-            --target master --title "PR $PR test build" --notes "$NOTES" \
+            --target master --title "PR test builds" --notes "$NOTES" \
             --prerelease 2>/dev/null || true
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-            --title "PR $PR test build" --notes "$NOTES"
+            --title "PR test builds" --notes "$NOTES"
 
   ios:
     needs: start
@@ -121,6 +131,7 @@ jobs:
       PR: ${{ inputs.pr }}
       BUNDLE_ID: org.spectrum3847.spectrumstrategy.pr${{ inputs.pr }}
       IPA_FILE: SpectrumStrategy-pr${{ inputs.pr }}.ipa
+      ENTRY_FILE: source-pr${{ inputs.pr }}.json
     steps:
       - name: Checkout the PR head from the private repo
         uses: actions/checkout@v7
@@ -202,7 +213,7 @@ jobs:
           build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python3 scripts/altstore/generate_source.py \
             --channel pr --pr "$PR" \
-            --out out/source.json \
+            --out "out/$ENTRY_FILE" \
             --ipa "out/$IPA_FILE" \
             --version "${{ steps.info.outputs.version }}" \
             --build-version "${{ steps.info.outputs.build }}" \
@@ -212,14 +223,14 @@ jobs:
             --icon-url "$SITE_URL/icon.png" \
             --description "PR $PR at ${SHA:0:7}"
 
-      - name: Publish to the PR release
+      - name: Publish to the PR builds release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber \
             "out/$IPA_FILE"
           gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber \
-            out/source.json
+            "out/$ENTRY_FILE"
 
   desktop:
     needs: start
@@ -231,20 +242,20 @@ jobs:
         include:
           - platform: windows
             runner: windows-latest
-            artifact: SpectrumStrategy-windows-x64.zip
+            suffix: windows-x64.zip
           - platform: macos
             runner: macos-latest
-            artifact: SpectrumStrategy-macos.zip
+            suffix: macos.zip
           - platform: linux
             runner: ubuntu-latest
-            artifact: SpectrumStrategy-linux-x86_64.AppImage
+            suffix: linux-x86_64.AppImage
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: write
     env:
       SHA: ${{ inputs.sha }}
       PR: ${{ inputs.pr }}
-      ARTIFACT: ${{ matrix.artifact }}
+      ARTIFACT: SpectrumStrategy-pr${{ inputs.pr }}-${{ matrix.suffix }}
     steps:
       - name: Checkout the PR head from the private repo
         uses: actions/checkout@v7
@@ -369,7 +380,7 @@ jobs:
           chmod +x appimagetool
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$appdir" "$ARTIFACT"
 
-      - name: Publish to the PR release
+      - name: Publish to the PR builds release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -406,13 +417,30 @@ jobs:
             scripts/firebase-deploy
             web/icons
 
-      - name: Delete the PR release
+      - name: Delete this PR's assets
         if: inputs.action == 'cleanup'
         env:
           GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
         run: |
-          gh release delete "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-            --cleanup-tag --yes || echo "No release $RELEASE_TAG to delete."
+          set -euo pipefail
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "No $RELEASE_TAG release; nothing to delete."
+            exit 0
+          fi
+
+          names="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].name' \
+            | { grep -E "^(${ASSET_PREFIX}[.-]|source-pr${PR}\.json$)" || true; })"
+          if [ -z "$names" ]; then
+            echo "No assets for this PR on $RELEASE_TAG."
+            exit 0
+          fi
+          while read -r name; do
+            gh release delete-asset "$RELEASE_TAG" "$name" \
+              --repo "$GITHUB_REPOSITORY" --yes
+            echo "Deleted $name"
+          done <<<"$names"
 
       - name: Collect every PR build's source entry
         env:
@@ -420,14 +448,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p entries out
-          gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
-            --json tagName --jq '.[].tagName | select(startswith("pr-"))' \
-          | while read -r tag; do
-              mkdir -p "entries/$tag"
-              gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
-                --pattern source.json --dir "entries/$tag" \
-                || echo "::warning::$tag has no source.json (desktop-only build, or upload in progress)"
-            done
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --pattern 'source-pr*.json' --dir entries \
+              || echo "::warning::no source entries on $RELEASE_TAG yet"
+          fi
           python3 scripts/altstore/merge_pr_sources.py \
             --entries entries --out out/pr.json --icon-url "$SITE_URL/icon.png"
           cp web/icons/Icon-192.png out/icon.png
@@ -515,7 +540,7 @@ jobs:
           SOURCE: ${{ needs['publish-source'].result }}
         run: |
           set -euo pipefail
-          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$ASSET_PREFIX"
           source_url="$SITE_URL/pr.json"
           {
             echo "Test builds of ${SHA:0:7} ([run]($RUN_URL))"
@@ -525,7 +550,7 @@ jobs:
                 echo "**iOS:** installs as \"Strategy PR $PR\", beside the nightly."
                 echo "- Add the PR builds source once, then pick this PR in it:"
                 echo "  [AltStore](altstore://source?url=$source_url) | [SideStore](sidestore://source?url=$source_url) | LiveContainer: paste \`$source_url\` under Sources"
-                echo "- Or download the [IPA]($base/SpectrumStrategy-pr$PR.ipa) directly."
+                echo "- Or download the [IPA]($base.ipa) directly."
               else
                 echo "**iOS:** failed (build: $IOS, source: $SOURCE). See the run."
               fi
@@ -533,7 +558,7 @@ jobs:
             fi
             if [ "$WANT_DESKTOP" = "true" ]; then
               if [ "$DESKTOP" = "success" ]; then
-                echo "**Desktop:** [Windows]($base/SpectrumStrategy-windows-x64.zip) | [macOS]($base/SpectrumStrategy-macos.zip) | [Linux]($base/SpectrumStrategy-linux-x86_64.AppImage)"
+                echo "**Desktop:** [Windows]($base-windows-x64.zip) | [macOS]($base-macos.zip) | [Linux]($base-linux-x86_64.AppImage)"
               else
                 echo "**Desktop:** failed ($DESKTOP). See the run."
               fi
