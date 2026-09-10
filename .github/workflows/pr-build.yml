@@ -94,6 +94,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Point the PR comment at this run
+        continue-on-error: true
         if: inputs.comment_id != ''
         env:
           GH_TOKEN: ${{ secrets.NIGHTLY_ALERT_TOKEN }}
