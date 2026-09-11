@@ -292,6 +292,11 @@ jobs:
         run: |
           build_date="$(date -u +%Y-%m-%d)"
           build_timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          glass_define=""
+          if [ "${{ matrix.platform }}" = "macos" ]; then
+            glass_define="--dart-define=SPECTRUM_GLASS_MACOS=true"
+          fi
           build() {
             flutter build ${{ matrix.platform }} --release \
               --obfuscate --split-debug-info=build/symbols \
@@ -301,7 +306,8 @@ jobs:
               --dart-define=BUILD_TIMESTAMP="$build_timestamp" \
               --dart-define=GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID}" \
               --dart-define=GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET}" \
-              --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
+              --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
+              $glass_define
           }
           for attempt in 1 2 3; do
             if build; then exit 0; fi
