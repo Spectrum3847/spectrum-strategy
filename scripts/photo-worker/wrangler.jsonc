@@ -1,0 +1,12 @@
+{
+  "name": "spectrumstrategy-photos",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-07-01",
+  "account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "spectrumstrategy-photos" }],
+  "vars": {
+    "FIREBASE_PROJECT": "frcspectrumstrategy",
+    "ALLOWED_ORIGINS": "https://frcspectrumstrategy.web.app,https://frcspectrumstrategy-staging.web.app,https://frcspectrumstrategy-nightly.web.app,https://frcspectrumstrategy-stable.web.app,http://localhost:5000"
+  },
+  "observability": { "enabled": true }
+}

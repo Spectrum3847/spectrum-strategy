@@ -1,0 +1,577 @@
+name: PR test build
+
+run-name: "PR ${{ inputs.pr }} ${{ inputs.action }} ${{ inputs.sha }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request number in the private repo"
+        required: true
+        type: string
+      sha:
+        description: "Head commit to build (required for action=build)"
+        required: false
+        type: string
+        default: ""
+      action:
+        description: "build the PR, or cleanup its release after it closed"
+        required: false
+        type: choice
+        options: [build, cleanup]
+        default: build
+      targets:
+        description: "Comma-separated subset of ios,desktop"
+        required: false
+        type: string
+        default: "ios,desktop"
+      comment_id:
+        description: "Comment on the private PR to update with the result"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ inputs.pr }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_REPO: Spectrum3847/SpectrumStrategy
+  FLUTTER_VERSION: 3.47.3
+  RELEASE_TAG: pr-builds
+  ASSET_PREFIX: SpectrumStrategy-pr${{ inputs.pr }}
+  SITE: frcspectrumstrategy-pr
+  SITE_URL: https://frcspectrumstrategy-pr.web.app
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      ios: ${{ steps.plan.outputs.ios }}
+      desktop: ${{ steps.plan.outputs.desktop }}
+    steps:
+      - name: Decide what to build
+        id: plan
+        env:
+          ACTION: ${{ inputs.action }}
+          TARGETS: ${{ inputs.targets }}
+          SHA: ${{ inputs.sha }}
+          PR: ${{ inputs.pr }}
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$PR" =~ ^[0-9]+$ ]]; then
+            echo "::error::pr must be a number, got '$PR'"
+            exit 1
+          fi
+          if [ -n "$SHA" ] && ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::sha must be a full 40-character commit id, got '$SHA'"
+            exit 1
+          fi
+          ios=false
+          desktop=false
+          if [ "$ACTION" = "build" ]; then
+            if [ -z "$SHA" ]; then
+              echo "::error::action=build needs a head sha"
+              exit 1
+            fi
+            case ",$TARGETS," in *,ios,*) ios=true ;; esac
+            case ",$TARGETS," in *,desktop,*) desktop=true ;; esac
+            if [ "$ios" = false ] && [ "$desktop" = false ]; then
+              echo "::error::targets '$TARGETS' names nothing to build"
+              exit 1
+            fi
+          fi
+          {
+            echo "ios=$ios"
+            echo "desktop=$desktop"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Point the PR comment at this run
+        continue-on-error: true
+        if: inputs.comment_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.NIGHTLY_ALERT_TOKEN }}
+          COMMENT_ID: ${{ inputs.comment_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          body="Test build of ${SHA:0:7} in progress on the mirror: $RUN_URL"
+          gh api --method PATCH "repos/$SOURCE_REPO/issues/comments/$COMMENT_ID" \
+            -f body="$body" --silent
+
+      - name: Ensure the rolling PR builds release exists
+        if: inputs.action == 'build'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          NOTES="Test builds of open pull requests, one set of files per PR, rebuilt on request and removed when the PR is merged or closed. The IPAs install through the PR builds source in AltStore, SideStore or LiveContainer."
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --target master --title "PR test builds" --notes "$NOTES" \
+            --prerelease 2>/dev/null || true
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --title "PR test builds" --notes "$NOTES"
+
+  ios:
+    needs: start
+    if: needs.start.outputs.ios == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      SHA: ${{ inputs.sha }}
+      PR: ${{ inputs.pr }}
+      BUNDLE_ID: org.spectrum3847.spectrumstrategy.pr${{ inputs.pr }}
+      IPA_FILE: SpectrumStrategy-pr${{ inputs.pr }}.ipa
+      ENTRY_FILE: source-pr${{ inputs.pr }}.json
+    steps:
+      - name: Checkout the PR head from the private repo
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ inputs.sha }}
+          token: ${{ secrets.MIRROR_SOURCE_TOKEN }}
+          persist-credentials: false
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v6
+        with:
+          path: |
+            ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-pods-${{ hashFiles('pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-pods-
+
+      - name: Give the build its own bundle id and name
+        run: |
+          set -euo pipefail
+          sed -i '' \
+            "s/PRODUCT_BUNDLE_IDENTIFIER = org.spectrum3847.spectrumstrategy;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/" \
+            ios/Runner.xcodeproj/project.pbxproj
+          grep -q "PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;" ios/Runner.xcodeproj/project.pbxproj
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Strategy PR $PR" ios/Runner/Info.plist
+
+      - name: Build unsigned IPA
+        run: |
+          build_date="$(date -u +%Y-%m-%d)"
+          flutter build ios --release --no-codesign \
+            --obfuscate --split-debug-info=build/symbols \
+            --build-name "0.0.0" \
+            --build-number "$PR.$GITHUB_RUN_NUMBER" \
+            --dart-define=GIT_COMMIT="${SHA:0:7}" \
+            --dart-define=GIT_BRANCH="pr-$PR" \
+            --dart-define=BUILD_DATE="$build_date" \
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
+
+      - name: Read real values from built Info.plist
+        id: info
+        run: |
+          APP_PATH="$(find build/ios -type d -name Runner.app | head -1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "Runner.app not found under build/ios"; exit 1
+          fi
+          PLIST="$APP_PATH/Info.plist"
+          REAL_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$PLIST")"
+          REAL_BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$PLIST")"
+          REAL_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$PLIST")"
+          if [ -z "$REAL_VERSION" ] || [ -z "$REAL_BUILD" ] || [ -z "$REAL_BUNDLE_ID" ]; then
+            echo "Could not read CFBundle values from $PLIST"; exit 1
+          fi
+          {
+            echo "app_path=$APP_PATH"
+            echo "version=$REAL_VERSION"
+            echo "build=$REAL_BUILD"
+            echo "bundle_id=$REAL_BUNDLE_ID"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Package IPA
+        run: |
+          APP_PATH="${{ steps.info.outputs.app_path }}"
+          mkdir -p out/Payload
+          cp -R "$APP_PATH" out/Payload/
+          (cd out && zip -qr "$IPA_FILE" Payload && rm -rf Payload)
+
+      - name: Generate this PR's source entry
+        run: |
+          build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 scripts/altstore/generate_source.py \
+            --channel pr --pr "$PR" \
+            --out "out/$ENTRY_FILE" \
+            --ipa "out/$IPA_FILE" \
+            --version "${{ steps.info.outputs.version }}" \
+            --build-version "${{ steps.info.outputs.build }}" \
+            --bundle-id "${{ steps.info.outputs.bundle_id }}" \
+            --date "$build_date" \
+            --download-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$IPA_FILE" \
+            --icon-url "$SITE_URL/icon.png" \
+            --description "PR $PR at ${SHA:0:7}"
+
+      - name: Publish to the PR builds release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "out/$IPA_FILE"
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "out/$ENTRY_FILE"
+
+  desktop:
+    needs: start
+    if: needs.start.outputs.desktop == 'true'
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            runner: windows-latest
+            suffix: windows-x64.zip
+          - platform: macos
+            runner: macos-latest
+            suffix: macos.zip
+          - platform: linux
+            runner: ubuntu-latest
+            suffix: linux-x86_64.AppImage
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    env:
+      SHA: ${{ inputs.sha }}
+      PR: ${{ inputs.pr }}
+      ARTIFACT: SpectrumStrategy-pr${{ inputs.pr }}-${{ matrix.suffix }}
+    steps:
+      - name: Checkout the PR head from the private repo
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ inputs.sha }}
+          token: ${{ secrets.MIRROR_SOURCE_TOKEN }}
+          persist-credentials: false
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        timeout-minutes: 5
+        run: |
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y \
+            clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev build-essential \
+            libayatana-appindicator3-dev
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Build desktop app
+        shell: bash
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+        run: |
+          build_date="$(date -u +%Y-%m-%d)"
+          build_timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          glass_define=""
+          if [ "${{ matrix.platform }}" = "macos" ]; then
+            glass_define="--dart-define=SPECTRUM_GLASS_MACOS=true"
+          fi
+          build() {
+            flutter build ${{ matrix.platform }} --release \
+              --obfuscate --split-debug-info=build/symbols \
+              --dart-define=GIT_COMMIT="${SHA:0:7}" \
+              --dart-define=GIT_BRANCH="pr-$PR" \
+              --dart-define=BUILD_DATE="$build_date" \
+              --dart-define=BUILD_TIMESTAMP="$build_timestamp" \
+              --dart-define=GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID}" \
+              --dart-define=GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET}" \
+              --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
+              $glass_define
+          }
+          for attempt in 1 2 3; do
+            if build; then exit 0; fi
+            echo "Build attempt $attempt failed; retrying in 30s"
+            sleep 30
+          done
+          echo "Build failed after 3 attempts"
+          exit 1
+
+      - name: Verify VC++ Runtime DLLs (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $releaseDir = "build/windows/x64/runner/Release"
+          foreach ($dll in "vcruntime140.dll", "msvcp140.dll") {
+            $path = Join-Path $releaseDir $dll
+            if (!(Test-Path $path)) {
+              throw "VC++ Runtime DLL missing from the build output: $path"
+            }
+            Write-Host "Bundled $dll"
+          }
+
+      - name: Package Windows build (unsigned ZIP)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $releaseDir = "build/windows/x64/runner/Release"
+          Copy-Item "scripts/install-windows-start-menu.ps1" "$releaseDir/"
+          Compress-Archive -Path "$releaseDir/*" -DestinationPath $env:ARTIFACT
+          $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $env:ARTIFACT))
+          $hasScript = $zip.Entries.Name -contains 'install-windows-start-menu.ps1'
+          $zip.Dispose()
+          if (-not $hasScript) {
+            throw "install-windows-start-menu.ps1 is missing from $env:ARTIFACT"
+          }
+
+      - name: Package macOS build (unsigned .app zip)
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "$app" ]; then echo "No .app bundle found"; exit 1; fi
+          ditto -c -k --sequesterRsrc --keepParent "$app" "$ARTIFACT"
+
+      - name: Package Linux build (AppImage)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="build/linux/x64/release/bundle"
+          appdir="AppDir"
+          mkdir -p "$appdir/usr/bin" "$appdir/usr/lib"
+          cp -r "$bundle"/* "$appdir/usr/bin/"
+          plugin="$(find "$appdir/usr/bin/lib" -name 'libtray_manager_plugin.so')"
+          ldd "$plugin" | awk '/ayatana|indicator|dbusmenu/ {print $3}' \
+            | xargs -r -I{} cp -L {} "$appdir/usr/lib/"
+          bin="$(find "$appdir/usr/bin" -maxdepth 1 -type f -executable ! -name '*.so*' | head -1)"
+          binname="$(basename "$bin")"
+          cat > "$appdir/AppRun" <<EOF
+          #!/bin/sh
+          HERE="\$(dirname "\$(readlink -f "\$0")")"
+          export LD_LIBRARY_PATH="\$HERE/usr/lib:\${LD_LIBRARY_PATH:-}"
+          exec "\$HERE/usr/bin/$binname" "\$@"
+          EOF
+          chmod +x "$appdir/AppRun"
+          cat > "$appdir/spectrumstrategy.desktop" <<EOF
+          [Desktop Entry]
+          Name=Spectrum Strategy
+          Exec=$binname
+          Icon=spectrumstrategy
+          Type=Application
+          Categories=Utility;
+          EOF
+          cp web/icons/Icon-512.png "$appdir/spectrumstrategy.png"
+          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$appdir" "$ARTIFACT"
+
+      - name: Publish to the PR builds release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "$ARTIFACT"
+
+  publish-source:
+
+    needs: [start, ios]
+    if: >-
+      always() && needs.start.result == 'success' &&
+      (needs.ios.result == 'success' || needs.ios.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: pr-source
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    env:
+      BUNDLE_ID: org.spectrum3847.spectrumstrategy.pr${{ inputs.pr }}
+    steps:
+
+      - name: Checkout scripts from the private repo
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: master
+          token: ${{ secrets.MIRROR_SOURCE_TOKEN }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/altstore
+            scripts/firebase-deploy
+            web/icons
+
+      - name: Delete this PR's assets
+        if: inputs.action == 'cleanup'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "No $RELEASE_TAG release; nothing to delete."
+            exit 0
+          fi
+
+          names="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].name' \
+            | { grep -E "^(${ASSET_PREFIX}[.-]|source-pr${PR}\.json$)" || true; })"
+          if [ -z "$names" ]; then
+            echo "No assets for this PR on $RELEASE_TAG."
+            exit 0
+          fi
+          while read -r name; do
+            gh release delete-asset "$RELEASE_TAG" "$name" \
+              --repo "$GITHUB_REPOSITORY" --yes
+            echo "Deleted $name"
+          done <<<"$names"
+
+      - name: Collect every PR build's source entry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p entries out
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --pattern 'source-pr*.json' --dir entries \
+              || echo "::warning::no source entries on $RELEASE_TAG yet"
+          fi
+          python3 scripts/altstore/merge_pr_sources.py \
+            --entries entries --out out/pr.json --icon-url "$SITE_URL/icon.png"
+          cp web/icons/Icon-192.png out/icon.png
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install the Firebase CLI
+        run: |
+          npm ci --ignore-scripts --prefix scripts/firebase-deploy
+          echo "$PWD/scripts/firebase-deploy/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Deploy the PR builds source
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NIGHTLY_HOSTING }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+
+          firebase hosting:sites:create "$SITE" --project frcspectrumstrategy \
+            --non-interactive 2>/dev/null || true
+          cat > firebase.pr.json <<JSON
+          { "hosting": { "site": "$SITE", "public": "out", "ignore": ["**/.*"], "headers": [ { "source": "**", "headers": [ { "key": "Access-Control-Allow-Origin", "value": "*" } ] }, { "source": "**/*.json", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] } ] } }
+          JSON
+          set +e
+          DEPLOY_OUTPUT="$(firebase deploy --only hosting \
+            --config firebase.pr.json \
+            --project frcspectrumstrategy \
+            --non-interactive 2>&1)"
+          DEPLOY_STATUS=$?
+          set -e
+          printf '%s\n' "$DEPLOY_OUTPUT"
+          rm -f "$RUNNER_TEMP/sa.json"
+          if [ "$DEPLOY_STATUS" -ne 0 ] && \
+             ! grep -q "current active version" <<<"$DEPLOY_OUTPUT"; then
+            exit "$DEPLOY_STATUS"
+          fi
+
+      - name: Verify the hosted source lists this PR correctly
+        if: inputs.action == 'cleanup' || needs.ios.result == 'success'
+        env:
+          ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          want=absent
+          if [ "$ACTION" = "build" ]; then
+            want=present
+          fi
+          for attempt in 1 2 3 4 5; do
+            if curl -fsSL "$SITE_URL/pr.json" | grep -q "\"$BUNDLE_ID\""; then
+              got=present
+            else
+              got=absent
+            fi
+            if [ "$got" = "$want" ]; then
+              echo "Hosted pr.json: $BUNDLE_ID is $got, as expected."
+              exit 0
+            fi
+            echo "Attempt $attempt: $BUNDLE_ID is $got, want $want; retrying in 10s"
+            sleep 10
+          done
+          echo "::error::Hosted pr.json still has $BUNDLE_ID $got; expected $want"
+          exit 1
+
+  comment:
+    needs: [start, ios, desktop, publish-source]
+    if: always() && inputs.comment_id != '' && inputs.action == 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Update the PR comment with the result
+        env:
+          GH_TOKEN: ${{ secrets.NIGHTLY_ALERT_TOKEN }}
+          COMMENT_ID: ${{ inputs.comment_id }}
+          PR: ${{ inputs.pr }}
+          SHA: ${{ inputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WANT_IOS: ${{ needs.start.outputs.ios }}
+          WANT_DESKTOP: ${{ needs.start.outputs.desktop }}
+          IOS: ${{ needs.ios.result }}
+          DESKTOP: ${{ needs.desktop.result }}
+          SOURCE: ${{ needs['publish-source'].result }}
+        run: |
+          set -euo pipefail
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$ASSET_PREFIX"
+          source_url="$SITE_URL/pr.json"
+          {
+            echo "Test builds of ${SHA:0:7} ([run]($RUN_URL))"
+            echo
+            if [ "$WANT_IOS" = "true" ]; then
+              if [ "$IOS" = "success" ] && [ "$SOURCE" = "success" ]; then
+                echo "**iOS:** installs as \"Strategy PR $PR\", beside the nightly."
+                echo "- Add the PR builds source once, then pick this PR in it:"
+                echo "  [AltStore](altstore://source?url=$source_url) | [SideStore](sidestore://source?url=$source_url) | LiveContainer: paste \`$source_url\` under Sources"
+                echo "- Or download the [IPA]($base.ipa) directly."
+              else
+                echo "**iOS:** failed (build: $IOS, source: $SOURCE). See the run."
+              fi
+              echo
+            fi
+            if [ "$WANT_DESKTOP" = "true" ]; then
+              if [ "$DESKTOP" = "success" ]; then
+                echo "**Desktop:** [Windows]($base-windows-x64.zip) | [macOS]($base-macos.zip) | [Linux]($base-linux-x86_64.AppImage)"
+              else
+                echo "**Desktop:** failed ($DESKTOP). See the run."
+              fi
+              echo
+            fi
+            echo "A later \`bot, build ios\`, \`bot, build desktop\` or \`bot, build apps\` on this PR replaces these. They are removed when the PR is merged or closed."
+          } > body.md
+          gh api --method PATCH "repos/$SOURCE_REPO/issues/comments/$COMMENT_ID" \
+            -F body=@body.md --silent

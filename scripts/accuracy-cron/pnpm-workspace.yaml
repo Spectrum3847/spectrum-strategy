@@ -1,0 +1,10 @@
+allowBuilds:
+  '@firebase/util': false
+  protobufjs: false
+
+overrides:
+  uuid: ^14.0.0
+
+  form-data: ^4.0.0
+
+  rimraf: ^6.1.3

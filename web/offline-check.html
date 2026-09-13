@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spectrum Strategy offline check</title>
+
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      padding: 20px;
+      font: 15px/1.5 system-ui, sans-serif;
+      max-width: 40rem;
+    }
+    h1 { font-size: 1.2rem; }
+    #verdict {
+      padding: 12px;
+      border-radius: 4px;
+      border: 2px solid currentColor;
+      font-weight: 700;
+    }
+    table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+    th, td {
+      text-align: left;
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.4);
+      font-size: 14px;
+      vertical-align: top;
+    }
+    th { width: 12rem; }
+    code { word-break: break-all; font-size: 13px; }
+    details { margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Offline check</h1>
+  <p id="verdict">Checking...</p>
+  <table id="facts"></table>
+  <details>
+    <summary>Everything cached</summary>
+    <div id="urls"></div>
+  </details>
+
+  <script>
+    (function () {
+      var verdict = document.getElementById('verdict');
+      var facts = document.getElementById('facts');
+
+      function row(label, value) {
+        var tr = document.createElement('tr');
+        var th = document.createElement('th');
+        th.textContent = label;
+        var td = document.createElement('td');
+        td.appendChild(value instanceof Node ? value : document.createTextNode(String(value)));
+        tr.appendChild(th);
+        tr.appendChild(td);
+        facts.appendChild(tr);
+      }
+
+      function code(text) {
+        var el = document.createElement('code');
+        el.textContent = text;
+        return el;
+      }
+
+      // Whether this is the standalone home-screen app or a browser tab. It
+      // matters because iOS gives an installed web app its own storage, so
+      // caching done in Safari does not carry over to it, and the two have to
+      // be checked separately.
+      function surface() {
+        if (window.navigator.standalone === true) return 'installed (iOS home screen)';
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+          return 'installed (standalone)';
+        }
+        return 'browser tab';
+      }
+
+      // The files without which the app cannot start. Which set is needed
+      // depends on the browser: one of the two engines, and a renderer to go
+      // with it. Anything else missing degrades; these do not.
+      function assess(cached) {
+        var has = function (name) { return cached.indexOf(name) !== -1; };
+        var wasm = has('main.dart.wasm') && has('main.dart.mjs');
+        var js = has('main.dart.js');
+        var renderer = cached.filter(function (u) {
+          return u.indexOf('canvaskit/') === 0 && u.slice(-5) === '.wasm';
+        });
+        var shell = has('index.html') && has('flutter_bootstrap.js');
+        var missing = [];
+        if (!shell) missing.push('the app shell');
+        if (!wasm && !js) missing.push('the engine (main.dart.js or main.dart.wasm)');
+        if (!renderer.length) missing.push('the renderer (canvaskit/*.wasm)');
+        return { ok: missing.length === 0, missing: missing, renderer: renderer };
+      }
+
+      // Literals for the same reason as index.html: nothing here can read
+      // StrategyPalette. Each names the token it mirrors, and the dark values
+      // are the palette's own dark variants rather than a guess.
+      function finish(ok, text) {
+        var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var good = dark
+          ? '#6FCF8B' /* StrategyPalette.darkScheduleGreen */
+          : '#2E7D32'; /* StrategyPalette.scheduleGreen */
+        var bad = dark
+          ? '#EE652B' /* StrategyPalette.darkError */
+          : '#98401A'; /* StrategyPalette.error */
+        verdict.textContent = text;
+        verdict.style.color = ok ? good : bad;
+      }
+
+      row('This surface', surface());
+      row('Online right now', navigator.onLine ? 'yes' : 'no');
+
+      if (!('serviceWorker' in navigator)) {
+        finish(false, 'This browser has no service worker support, so the app can never work offline here.');
+        return;
+      }
+
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        row('Service workers registered', regs.length);
+        regs.forEach(function (reg) {
+          row('  scope', code(reg.scope));
+          row('  active script', code(reg.active ? reg.active.scriptURL : 'none'));
+        });
+        return caches.keys();
+      }).then(function (names) {
+        row('Caches', names.length ? code(names.join(', ')) : 'none');
+        var ours = names.filter(function (n) { return n.indexOf('spectrum-') === 0; });
+        if (!ours.length) {
+          finish(false, 'Nothing is cached on this surface yet. Open the app here once with a connection, then check again. On iOS an installed app has its own storage, so opening it in Safari does not count.');
+          return null;
+        }
+        return caches.open(ours[0]).then(function (cache) {
+          return cache.keys();
+        }).then(function (requests) {
+          var base = window.location.origin + '/';
+          var cached = requests.map(function (r) {
+            return r.url.indexOf(base) === 0 ? r.url.slice(base.length) : r.url;
+          }).sort();
+          row('Files cached', cached.length);
+          var result = assess(cached);
+          row('Renderer cached', result.renderer.length ? code(result.renderer.join(', ')) : 'none');
+          document.getElementById('urls').appendChild(code(cached.join('\n')));
+          document.getElementById('urls').style.whiteSpace = 'pre-wrap';
+          if (result.ok) {
+            finish(true, 'This surface has what it needs to start offline. If it still does not, the problem is not the cache and the details above are what to send.');
+          } else {
+            finish(false, 'Cached, but missing ' + result.missing.join(' and ') + '. Open the app here once with a connection and wait for it to finish loading, then check again.');
+          }
+          return null;
+        });
+      }).catch(function (error) {
+        finish(false, 'Could not read the cache: ' + error);
+      });
+    })();
+  </script>
+</body>
+</html>
