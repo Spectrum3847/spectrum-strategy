@@ -674,13 +674,35 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          artifact_id="$(gh api --paginate "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
-            --jq '.artifacts[] | select(.name == "private-docs") | .id')"
+
+          listed=false
+          artifact_id=""
+          for attempt in 1 2 3 4 5; do
+            if artifact_id="$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
+              --jq '.artifacts // [] | .[] | select(.name == "private-docs") | .id')"; then
+              listed=true
+              break
+            fi
+            echo "Attempt $attempt: artifact list failed; retrying in 10s."
+            sleep 10
+          done
+          if [ "$listed" != true ]; then
+            echo "::error::Could not list run artifacts after 5 attempts; the private-docs artifact may still be public."
+            exit 1
+          fi
           if [ -z "$artifact_id" ]; then
             echo "No private-docs artifact on this run; nothing to delete."
             exit 0
           fi
-          gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$artifact_id"
+          for attempt in 1 2 3; do
+            if gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$artifact_id"; then
+              exit 0
+            fi
+            echo "Attempt $attempt: artifact delete failed; retrying in 10s."
+            sleep 10
+          done
+          echo "::error::Could not delete the private-docs artifact after 3 attempts."
+          exit 1
 
   finalize:
 
