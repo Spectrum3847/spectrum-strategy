@@ -1,0 +1,14 @@
+{
+  "name": "spectrumstrategy-firebase-deploy",
+  "private": true,
+  "description": "Pinned firebase-tools CLI for the AltStore/nightly Firebase Hosting deploy workflows. Installed with npm ci --ignore-scripts so no dependency's install script runs.",
+  "dependencies": {
+    "firebase-tools": "15.30.0"
+  },
+  "overrides": {
+    "qs": "^6.16.0",
+    "@opentelemetry/core": "^2.8.0",
+    "uuid": "^14.0.0",
+    "csv-parse": "^7.0.2"
+  }
+}
