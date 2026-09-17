@@ -1,0 +1,495 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+import 'package:spectrumstrategy/src/scouting/models/pit_scout_entry.dart';
+import 'package:spectrumstrategy/src/scouting/models/scout_config.dart';
+import 'package:spectrumstrategy/src/scouting/services/pit_photo_upload_service.dart';
+import 'package:spectrumstrategy/src/scouting/services/scout_config_service.dart';
+import 'package:spectrumstrategy/src/scouting/state/pit_scout_config_controller.dart';
+import 'package:spectrumstrategy/src/scouting/state/pit_scouting_controller.dart';
+import 'package:spectrumstrategy/src/ui/pit_database_view.dart';
+import 'package:spectrumstrategy/src/ui/pit_scouting_screen.dart';
+
+import 'support/fake_pit_photo_store.dart';
+import 'support/fake_pit_scouting_storage.dart';
+
+class _FixedPitConfigService extends ScoutConfigService {
+  _FixedPitConfigService(this._config) : super.pit();
+
+  final ScoutConfig _config;
+
+  @override
+  Future<ScoutConfig?> loadStored() async => _config;
+
+  @override
+  Future<void> save(ScoutConfig config) async {}
+}
+
+const ScoutConfig _orderedConfig = ScoutConfig(
+  title: 'Pit Scouting',
+  pageTitle: '',
+  delimiter: '\t',
+
+  revision: 6,
+  sections: <ScoutConfigSection>[
+    ScoutConfigSection(
+      name: 'Robot',
+      fields: <ScoutConfigField>[
+        ScoutConfigField(
+          title: 'Drivetrain Type',
+          code: 'drivetrainType',
+          type: ScoutFieldType.select,
+
+          choices: <String, String>{'swerve': 'Swerve', 'tank': 'Tank'},
+        ),
+        ScoutConfigField(
+          title: 'Frame Dimensions',
+          code: 'frameDimensions',
+          type: ScoutFieldType.text,
+        ),
+        ScoutConfigField(
+          title: 'Notes',
+          code: 'notes',
+          type: ScoutFieldType.text,
+        ),
+      ],
+    ),
+  ],
+);
+
+void main() {
+  group('PitDatabaseView', () {
+    testWidgets(
+      'renders an entry\'s answers in the pit form\'s question order',
+      (tester) async {
+        final controller = PitScoutingController(
+          storage: FakePitScoutingStorage(),
+          photoStore: FakePitPhotoStore(),
+        );
+        await controller.bootstrap();
+        await controller.saveEntry(
+          PitScoutEntry(
+            teamNumber: 3847,
+            authorDisplayName: 'Alexandria',
+            fieldValues: const <String, dynamic>{
+              'notes': 'Watch their auto, it is fast',
+              'drivetrainType': 'swerve',
+              'frameDimensions': '28x30',
+            },
+          ),
+        );
+        final configController = PitScoutConfigController(
+          service: _FixedPitConfigService(_orderedConfig),
+        );
+        await configController.bootstrap();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: PitDatabaseView(
+                controller: controller,
+                configController: configController,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Team 3847'));
+        await tester.pumpAndSettle();
+
+        double dyOf(String text) => tester.getTopLeft(find.text(text)).dy;
+
+        final drivetrain = dyOf('Drivetrain Type');
+        final frame = dyOf('Frame Dimensions');
+        final notes = dyOf('Notes');
+
+        expect(drivetrain, lessThan(frame));
+        expect(frame, lessThan(notes));
+
+        expect(find.textContaining('Swerve'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'shows a placeholder when a remote entry only carries photoKeys and no '
+      'local bytes are available',
+      (tester) async {
+        final controller = PitScoutingController(
+          storage: FakePitScoutingStorage(),
+        );
+        await controller.bootstrap();
+        await controller.saveEntry(
+          PitScoutEntry(
+            teamNumber: 254,
+            authorUid: 'uid-remote',
+
+            photoKeys: const <String, String>{'r2-key-abc': 'r2-key-abc'},
+          ),
+        );
+        final configController = PitScoutConfigController(
+          service: _FixedPitConfigService(_orderedConfig),
+        );
+        await configController.bootstrap();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: PitDatabaseView(
+                controller: controller,
+                configController: configController,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Team 254'));
+        await tester.pumpAndSettle();
+
+        expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.broken_image_rounded), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'shows a document field as an attachment row, not a raw Worker key '
+      '(#1594)',
+      (tester) async {
+        const config = ScoutConfig(
+          title: 'Pit Scouting',
+          revision: 5,
+          sections: <ScoutConfigSection>[
+            ScoutConfigSection(
+              name: 'Robot',
+              fields: <ScoutConfigField>[
+                ScoutConfigField(
+                  title: 'Field map',
+                  code: 'fieldMap',
+                  type: ScoutFieldType.document,
+                ),
+              ],
+            ),
+          ],
+        );
+        final controller = PitScoutingController(
+          storage: FakePitScoutingStorage(),
+          photoStore: FakePitPhotoStore(),
+          photoUploader: PitPhotoUploadService(
+            baseUrlLoader: () async => 'https://photos.example.workers.dev',
+            idTokenProvider: () async => 'fb-token',
+            httpClient: MockClient((_) async => http.Response('', 404)),
+          ),
+        );
+        await controller.bootstrap();
+        await controller.saveEntry(
+          PitScoutEntry(
+            teamNumber: 3847,
+            fieldValues: const <String, dynamic>{
+              'fieldMap': 'a1b2c3d4-e5f6-7890-abcd-ef0123456789.pdf',
+            },
+          ),
+        );
+        final configController = PitScoutConfigController(
+          service: _FixedPitConfigService(config),
+        );
+        await configController.bootstrap();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: PitDatabaseView(
+                controller: controller,
+                configController: configController,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Team 3847'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Field map'), findsOneWidget);
+        expect(find.text('Attached'), findsOneWidget);
+        expect(find.widgetWithText(TextButton, 'Open'), findsOneWidget);
+
+        expect(
+          find.text('a1b2c3d4-e5f6-7890-abcd-ef0123456789.pdf'),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets('shows an empty state when there are no pit entries', (
+      tester,
+    ) async {
+      final controller = PitScoutingController(
+        storage: FakePitScoutingStorage(),
+      );
+      await controller.bootstrap();
+      final configController = PitScoutConfigController(
+        service: _FixedPitConfigService(_orderedConfig),
+      );
+      await configController.bootstrap();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PitDatabaseView(
+              controller: controller,
+              configController: configController,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('No pit entries submitted yet.'), findsOneWidget);
+    });
+
+    testWidgets('lists entries oldest submission first', (tester) async {
+      final storage = FakePitScoutingStorage();
+      await storage.saveEntry(
+        PitScoutEntry(teamNumber: 100, updatedAt: DateTime.utc(2026, 3, 1)),
+      );
+      await storage.saveEntry(
+        PitScoutEntry(teamNumber: 200, updatedAt: DateTime.utc(2026, 3, 2)),
+      );
+      final controller = PitScoutingController(storage: storage);
+      await controller.bootstrap();
+      final configController = PitScoutConfigController(
+        service: _FixedPitConfigService(_orderedConfig),
+      );
+      await configController.bootstrap();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PitDatabaseView(
+              controller: controller,
+              configController: configController,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final firstY = tester.getTopLeft(find.text('Team 100')).dy;
+      final secondY = tester.getTopLeft(find.text('Team 200')).dy;
+      expect(firstY, lessThan(secondY));
+    });
+
+    testWidgets('offers no edit affordance: the view is read-only', (
+      tester,
+    ) async {
+      final controller = PitScoutingController(
+        storage: FakePitScoutingStorage(),
+        photoStore: FakePitPhotoStore(),
+      );
+      await controller.bootstrap();
+      await controller.saveEntry(PitScoutEntry(teamNumber: 3847));
+      final configController = PitScoutConfigController(
+        service: _FixedPitConfigService(_orderedConfig),
+      );
+      await configController.bootstrap();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PitDatabaseView(
+              controller: controller,
+              configController: configController,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Team 3847'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit entry'), findsNothing);
+      expect(find.byIcon(Icons.delete_outline_rounded), findsNothing);
+    });
+
+    testWidgets('team tabs filter to the tapped team with answers open', (
+      tester,
+    ) async {
+      final controller = PitScoutingController(
+        storage: FakePitScoutingStorage(),
+        photoStore: FakePitPhotoStore(),
+      );
+      await controller.bootstrap();
+      await controller.saveEntry(
+        PitScoutEntry(
+          teamNumber: 3847,
+          fieldValues: const <String, dynamic>{'drivetrainType': 'swerve'},
+        ),
+      );
+      await controller.saveEntry(
+        PitScoutEntry(
+          teamNumber: 254,
+          fieldValues: const <String, dynamic>{'drivetrainType': 'tank'},
+        ),
+      );
+      final configController = PitScoutConfigController(
+        service: _FixedPitConfigService(_orderedConfig),
+      );
+      await configController.bootstrap();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PitDatabaseView(
+              controller: controller,
+              configController: configController,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(ChoiceChip, 'All'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, '3847'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, '254'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, '254'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Team 254'), findsOneWidget);
+      expect(find.text('Team 3847'), findsNothing);
+      expect(find.textContaining('Tank'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'All'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Team 254'), findsOneWidget);
+      expect(find.text('Team 3847'), findsOneWidget);
+    });
+
+    testWidgets('tapping a photo opens it fullscreen', (tester) async {
+      final png = base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      );
+      const entryId = 'entry-with-photo';
+      final photoStore = FakePitPhotoStore();
+      final controller = PitScoutingController(
+        storage: FakePitScoutingStorage(),
+        photoStore: photoStore,
+      );
+      await controller.bootstrap();
+      final photoId = await photoStore.write(entryId, png);
+      await controller.saveEntry(
+        PitScoutEntry(
+          id: entryId,
+          teamNumber: 3847,
+          photoIds: <String>[photoId],
+        ),
+      );
+      final configController = PitScoutConfigController(
+        service: _FixedPitConfigService(_orderedConfig),
+      );
+      await configController.bootstrap();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PitDatabaseView(
+              controller: controller,
+              configController: configController,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Team 3847'));
+      await tester.pumpAndSettle();
+
+      final photo = find.byWidgetPredicate(
+        (widget) => widget is Image && widget.width == 128,
+      );
+      final image = tester.widget<Image>(photo);
+      expect(image.height, 128);
+
+      await tester.tap(photo);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+    });
+
+    testWidgets('clearing the parent team filter returns to All', (
+      tester,
+    ) async {
+      final controller = PitScoutingController(
+        storage: FakePitScoutingStorage(),
+        photoStore: FakePitPhotoStore(),
+      );
+      await controller.bootstrap();
+      await controller.saveEntry(PitScoutEntry(teamNumber: 3847));
+      await controller.saveEntry(PitScoutEntry(teamNumber: 254));
+      final configController = PitScoutConfigController(
+        service: _FixedPitConfigService(_orderedConfig),
+      );
+      await configController.bootstrap();
+
+      Widget frame({int? teamFilter}) => MaterialApp(
+        home: Scaffold(
+          body: PitDatabaseView(
+            controller: controller,
+            configController: configController,
+            teamFilter: teamFilter,
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(frame(teamFilter: 254));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Team 254'), findsOneWidget);
+      expect(find.text('Team 3847'), findsNothing);
+
+      await tester.pumpWidget(frame());
+      await tester.pumpAndSettle();
+
+      expect(find.text('All'), findsOneWidget);
+      expect(find.text('Team 254'), findsOneWidget);
+      expect(find.text('Team 3847'), findsOneWidget);
+    });
+  });
+
+  group('PitScoutingScreen Database tab', () {
+    testWidgets('the Database tab shows every submission, tabbed ahead of the '
+        'questionnaire', (tester) async {
+      final pitController = PitScoutingController(
+        storage: FakePitScoutingStorage(),
+        photoStore: FakePitPhotoStore(),
+      );
+      await pitController.bootstrap();
+      await pitController.saveEntry(PitScoutEntry(teamNumber: 3847));
+      final pitConfig = PitScoutConfigController(
+        service: _FixedPitConfigService(_orderedConfig),
+      );
+      await pitConfig.bootstrap();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PitScoutingScreen(
+            controller: pitController,
+            configController: pitConfig,
+            canEditAnyEntry: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Database'), findsOneWidget);
+      expect(find.text('Questionnaire'), findsOneWidget);
+      expect(find.text('Team 3847'), findsOneWidget);
+    });
+  });
+}
