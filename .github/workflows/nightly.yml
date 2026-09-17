@@ -723,15 +723,6 @@ jobs:
           ref: ${{ needs.sync.outputs.sha }}
           fetch-depth: 0
 
-      - name: Record the published source commit
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f -a nightly-published "${{ needs.sync.outputs.sha }}" \
-            -m "${{ needs.sync.outputs.source_sha }}"
-          git push -q -f origin refs/tags/nightly-published
-
       - name: Publish the nightly manifest
         env:
           GH_TOKEN: ${{ github.token }}
@@ -745,6 +736,15 @@ jobs:
             "${{ github.run_number }}" > nightly-manifest.json
           gh release upload nightly --repo "$GITHUB_REPOSITORY" \
             nightly-manifest.json --clobber
+
+      - name: Record the published source commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f -a nightly-published "${{ needs.sync.outputs.sha }}" \
+            -m "${{ needs.sync.outputs.source_sha }}"
+          git push -q -f origin refs/tags/nightly-published
 
   report-failure:
     needs: [sync, ios, android, desktop, staging-web]
