@@ -732,6 +732,20 @@ jobs:
             -m "${{ needs.sync.outputs.source_sha }}"
           git push -q -f origin refs/tags/nightly-published
 
+      - name: Publish the nightly manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.sync.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          printf '{"commit":"%s","branch":"master","builtAt":"%s","runNumber":"%s"}\n' \
+            "$SOURCE_SHA" \
+            "$built_at" \
+            "${{ github.run_number }}" > nightly-manifest.json
+          gh release upload nightly --repo "$GITHUB_REPOSITORY" \
+            nightly-manifest.json --clobber
+
   report-failure:
     needs: [sync, ios, android, desktop, staging-web]
 
