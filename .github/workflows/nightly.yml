@@ -329,7 +329,7 @@ jobs:
           name: private-docs
       - run: tar -xzf private-docs.tar.gz && rm private-docs.tar.gz
 
-      - name: Set up JDK 21
+      - name: Set up JDK 25
         uses: actions/setup-java@v6
         with:
           distribution: temurin
