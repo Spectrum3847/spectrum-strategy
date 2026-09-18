@@ -1,7 +1,6 @@
 import 'dart:async' show unawaited;
 
 import 'package:flutter/material.dart';
-import 'package:liquid_glass/liquid_glass.dart';
 
 import 'glass_chrome.dart';
 
@@ -676,15 +675,10 @@ class _AppShellState extends State<AppShell> {
       ),
     ];
 
-    final glass = _useGlass;
-
     final orderedTabs = _orderedTabs();
 
     final appBar = AppBar(
       titleSpacing: 0,
-      backgroundColor: glass ? Colors.transparent : null,
-      elevation: glass ? 0 : null,
-      scrolledUnderElevation: glass ? 0 : null,
       leading: orderedTabs.length >= 2
           ? _TabMenu(
               menuKey: _tabMenuKey,
@@ -698,16 +692,11 @@ class _AppShellState extends State<AppShell> {
     );
 
     return GlassChrome(
-      enabled: glass,
+      enabled: _useGlass,
       child: Stack(
         children: [
           Scaffold(
-            appBar: glass
-                ? _GlassBar(
-                    brightness: Theme.of(context).brightness,
-                    child: appBar,
-                  )
-                : appBar,
+            appBar: appBar,
             body: IndexedStack(index: _index, children: tabs),
           ),
           if (_tourVisible)
@@ -776,42 +765,4 @@ class _TabMenu extends StatelessWidget {
       }).toList(),
     );
   }
-}
-
-class _GlassSurface extends StatelessWidget {
-  const _GlassSurface({required this.brightness, required this.child});
-
-  final Brightness brightness;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.passthrough,
-      children: [
-        Positioned.fill(
-          child: LiquidGlass(
-            key: ValueKey(brightness),
-            cornerRadius: 0,
-            brightness: brightness,
-          ),
-        ),
-        child,
-      ],
-    );
-  }
-}
-
-class _GlassBar extends StatelessWidget implements PreferredSizeWidget {
-  const _GlassBar({required this.brightness, required this.child});
-
-  final Brightness brightness;
-  final PreferredSizeWidget child;
-
-  @override
-  Size get preferredSize => child.preferredSize;
-
-  @override
-  Widget build(BuildContext context) =>
-      _GlassSurface(brightness: brightness, child: child);
 }

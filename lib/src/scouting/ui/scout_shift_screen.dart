@@ -321,10 +321,9 @@ class _ScoutShiftScreenState extends State<ScoutShiftScreen> {
           if (widget.pitMirrorController != null) widget.pitMirrorController!,
         ]),
         builder: (context, _) {
-          if (!widget.eventController.hasMatches) {
+          if (!widget.eventController.hasEvent) {
             return const _Empty(
-              message:
-                  'Select an event with a match schedule to generate shifts.',
+              message: 'Select an event to build a shift schedule.',
             );
           }
           final pitMirror = widget.pitMirrorController?.mirror;
@@ -354,9 +353,7 @@ class _ScoutShiftScreenState extends State<ScoutShiftScreen> {
                               'one.',
                     action: _canGenerate
                         ? FilledButton.icon(
-                            onPressed: widget.eventController.hasMatches
-                                ? _openInputNamesDialog
-                                : null,
+                            onPressed: _openInputNamesDialog,
                             icon: const Icon(Icons.autorenew_rounded),
                             label: const Text('Input names'),
                           )
@@ -504,9 +501,7 @@ class _ScoutShiftScreenState extends State<ScoutShiftScreen> {
                         runSpacing: 8,
                         children: [
                           OutlinedButton.icon(
-                            onPressed: widget.eventController.hasMatches
-                                ? _openInputNamesDialog
-                                : null,
+                            onPressed: _openInputNamesDialog,
                             icon: const Icon(Icons.autorenew_rounded),
                             label: const Text('Input names'),
                           ),

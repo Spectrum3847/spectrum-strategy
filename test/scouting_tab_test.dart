@@ -138,6 +138,14 @@ void main() {
       ),
     );
     expect(find.text('Offline'), findsOneWidget);
+
+    await _pumpTab(
+      tester,
+      syncService: FakeScoutingSyncService(
+        initialState: ScoutingSyncState.rejected,
+      ),
+    );
+    expect(find.text('Not accepted'), findsOneWidget);
   });
 }
 

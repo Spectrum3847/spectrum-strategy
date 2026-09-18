@@ -6,7 +6,16 @@ import 'package:flutter/services.dart' show PlatformException;
 import '../../services/spectrum_auth_service.dart';
 import '../models/scout_entry.dart';
 
-enum ScoutingSyncState { signedOut, noAccess, syncing, synced, offline }
+enum ScoutingSyncState {
+  signedOut,
+
+  noAccess,
+  syncing,
+  synced,
+  offline,
+
+  rejected,
+}
 
 class ScoutingSyncStatus {
   const ScoutingSyncStatus({
@@ -22,6 +31,19 @@ class ScoutingSyncStatus {
 
   final int pendingWrites;
 }
+
+bool _isPermissionDenied(Object error) {
+  final errorText = error.toString().toLowerCase();
+  return (error is FirebaseException && error.code == 'permission-denied') ||
+      (error is PlatformException && error.code == 'permission-denied') ||
+      (errorText.contains('permission') && errorText.contains('denied'));
+}
+
+String _permissionErrorMessage(Object error) => switch (error) {
+  FirebaseException(:final message) => message ?? error.toString(),
+  PlatformException(:final message) => message ?? error.toString(),
+  _ => error.toString(),
+};
 
 abstract class ScoutingSyncService {
   Stream<ScoutingSyncStatus> get statusStream;
@@ -105,13 +127,7 @@ class FirestoreScoutingSyncService implements ScoutingSyncService {
         ),
       );
     } catch (error) {
-      _emit(
-        ScoutingSyncStatus(
-          state: ScoutingSyncState.offline,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.toString(),
-        ),
-      );
+      _emit(_pushOrDeleteFailure(error));
     }
   }
 
@@ -131,13 +147,7 @@ class FirestoreScoutingSyncService implements ScoutingSyncService {
         ),
       );
     } catch (error) {
-      _emit(
-        ScoutingSyncStatus(
-          state: ScoutingSyncState.offline,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.toString(),
-        ),
-      );
+      _emit(_pushOrDeleteFailure(error));
     }
   }
 
@@ -175,6 +185,21 @@ class FirestoreScoutingSyncService implements ScoutingSyncService {
     await _remoteController.close();
   }
 
+  ScoutingSyncStatus _pushOrDeleteFailure(Object error) {
+    if (_isPermissionDenied(error)) {
+      return ScoutingSyncStatus(
+        state: ScoutingSyncState.rejected,
+        lastSyncedAt: _status.lastSyncedAt,
+        error: _permissionErrorMessage(error),
+      );
+    }
+    return ScoutingSyncStatus(
+      state: ScoutingSyncState.offline,
+      lastSyncedAt: _status.lastSyncedAt,
+      error: error.toString(),
+    );
+  }
+
   CollectionReference<Map<String, dynamic>> _collection() {
     return _firestore.collection('scoutEntries');
   }
@@ -202,22 +227,12 @@ class FirestoreScoutingSyncService implements ScoutingSyncService {
         );
       },
       onError: (Object error) {
-        final errorText = error.toString().toLowerCase();
-        final deniedByRules =
-            (error is FirebaseException && error.code == 'permission-denied') ||
-            (error is PlatformException && error.code == 'permission-denied') ||
-            (errorText.contains('permission') && errorText.contains('denied'));
-        if (deniedByRules) {
-          final message = switch (error) {
-            FirebaseException(:final message) => message,
-            PlatformException(:final message) => message,
-            _ => null,
-          };
+        if (_isPermissionDenied(error)) {
           _emit(
             ScoutingSyncStatus(
               state: ScoutingSyncState.noAccess,
               lastSyncedAt: _status.lastSyncedAt,
-              error: message,
+              error: _permissionErrorMessage(error),
             ),
           );
           return;

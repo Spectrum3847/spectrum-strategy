@@ -491,6 +491,52 @@ void main() {
     expect(find.textContaining('Select an event'), findsOneWidget);
   });
 
+  testWidgets('an event whose schedule failed to load still reaches the '
+      'grid', (tester) async {
+    Future<http.Response> api(http.Request request) async =>
+        http.Response('{}', 500);
+
+    final eventController = EventController(
+      client: StatboticsClient(
+        httpClient: MockClient(api),
+        sleep: (_) async {},
+      ),
+    );
+    addTearDown(eventController.dispose);
+    await eventController.setEventKey('2026miket');
+    expect(eventController.hasMatches, isFalse);
+
+    final auth = LocalOnlyAuthService();
+    final roles = UserRoleController(
+      authService: auth,
+      roleService: LocalUserRoleService(),
+    );
+    addTearDown(() async {
+      roles.dispose();
+      await auth.dispose();
+    });
+    await roles.bootstrap();
+
+    final sync = FakeScoutShiftSyncService(uid: 'admin1', displayName: 'Admin');
+    final controller = ScoutShiftController(syncService: sync);
+    addTearDown(controller.dispose);
+    await controller.watchEvent('2026miket');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ScoutShiftScreen(
+          eventController: eventController,
+          userRoleController: roles,
+          controller: controller,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('Select an event'), findsNothing);
+    expect(find.textContaining('No schedule yet'), findsOneWidget);
+  });
+
   testWidgets('a failed push shows the pill', (tester) async {
     const eventJson = '{"key":"2026miket","name":"Test","year":2026}';
     const matchesJson =

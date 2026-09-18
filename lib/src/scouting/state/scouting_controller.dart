@@ -42,6 +42,9 @@ class ScoutingController extends ChangeNotifier {
     state: ScoutingSyncState.signedOut,
   );
 
+  bool _repushInFlight = false;
+  bool _repushPending = false;
+
   int _entriesRevision = 0;
   int get entriesRevision => _entriesRevision;
 
@@ -86,8 +89,15 @@ class ScoutingController extends ChangeNotifier {
     final sync = _syncService;
     if (sync != null) {
       _statusSubscription = sync.statusStream.listen((status) {
+        final previousState = _syncStatus.state;
         _syncStatus = status;
         notifyListeners();
+
+        if (!_repushInFlight &&
+            status.state == ScoutingSyncState.synced &&
+            previousState != ScoutingSyncState.synced) {
+          unawaited(_repushUnsynced());
+        }
       });
       _remoteSubscription = sync.remoteEntriesStream.listen(_mergeRemote);
       _syncStatus = sync.status;
@@ -95,6 +105,9 @@ class ScoutingController extends ChangeNotifier {
         await sync.initialize();
       } catch (_) {
         // Intentionally empty.
+      }
+      if (_syncStatus.state != ScoutingSyncState.signedOut) {
+        unawaited(_repushUnsynced());
       }
     }
 
@@ -147,7 +160,7 @@ class ScoutingController extends ChangeNotifier {
     }
     final sync = _syncService;
     if (sync != null) {
-      unawaited(sync.push(snapshot));
+      unawaited(sync.push(snapshot).then((_) => _recordSyncOutcome(sync)));
     }
     return true;
   }
@@ -201,9 +214,19 @@ class ScoutingController extends ChangeNotifier {
     }
     final sync = _syncService;
     if (sync != null) {
-      unawaited(sync.delete(existing));
+      unawaited(sync.delete(existing).then((_) => _recordSyncOutcome(sync)));
     }
     return true;
+  }
+
+  void _recordSyncOutcome(ScoutingSyncService sync) {
+    final state = sync.status.state;
+    if (state == ScoutingSyncState.rejected) {
+      failedWrites.recordFailure();
+      notifyListeners();
+    } else if (state == ScoutingSyncState.synced) {
+      if (failedWrites.recordSuccess()) notifyListeners();
+    }
   }
 
   Future<void> saveNow() async {
@@ -272,6 +295,38 @@ class ScoutingController extends ChangeNotifier {
     if (changed) {
       _entriesRevision++;
       notifyListeners();
+    }
+  }
+
+  Future<void> _repushUnsynced() async {
+    if (_repushInFlight) {
+      _repushPending = true;
+      return;
+    }
+    _repushInFlight = true;
+    try {
+      do {
+        _repushPending = false;
+        final sync = _syncService;
+        if (sync == null) return;
+
+        final targetIds = _entries
+            .where((entry) => !_remoteSyncedIds.contains(entry.id))
+            .map((entry) => entry.id)
+            .toSet();
+        if (targetIds.isEmpty) continue;
+
+        await _saveQueue;
+        for (final id in targetIds) {
+          final index = _entries.indexWhere((entry) => entry.id == id);
+          if (index < 0) continue;
+          final snapshot = ScoutEntry.fromJson(_entries[index].toJson());
+          await sync.push(snapshot);
+          _recordSyncOutcome(sync);
+        }
+      } while (_repushPending);
+    } finally {
+      _repushInFlight = false;
     }
   }
 

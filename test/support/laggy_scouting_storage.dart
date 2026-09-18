@@ -10,6 +10,8 @@ class LaggyScoutingStorage implements ScoutingStorage {
   final Map<String, String> _entries = <String, String>{};
   Completer<void>? firstSaveGate;
 
+  bool deleteShouldFail = false;
+
   @override
   Future<List<ScoutEntry>> loadAll() async {
     final entries = _entries.values
@@ -45,6 +47,9 @@ class LaggyScoutingStorage implements ScoutingStorage {
 
   @override
   Future<void> deleteEntry(String id) async {
+    if (deleteShouldFail) {
+      throw Exception('delete failed');
+    }
     deletedIds.add(id);
     _entries.remove(id);
   }

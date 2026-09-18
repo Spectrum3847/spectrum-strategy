@@ -356,8 +356,56 @@ void main() {
     sync.simulateOutage = false;
     await controller.saveEntry(ScoutEntry(matchId: 'match-1', teamNumber: 254));
     await Future<void>.delayed(Duration.zero);
-    expect(sync.pushed, hasLength(1));
+    expect(sync.pushed.map((e) => e.teamNumber).toSet(), <int>{971, 254});
     expect(controller.entries, hasLength(2));
+  });
+
+  test(
+    'a push the server rejects reports rejected and marks failedWrites',
+    () async {
+      final sync = FakeScoutingSyncService()..simulateRejection = true;
+      final controller = ScoutingController(
+        storage: FakeScoutingStorage(),
+        syncService: sync,
+      );
+      await controller.bootstrap();
+
+      await controller.saveEntry(
+        ScoutEntry(matchId: 'match-1', teamNumber: 971),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.entries, hasLength(1));
+      expect(sync.pushed, isEmpty);
+      expect(sync.status.state, ScoutingSyncState.rejected);
+      expect(controller.failedWrites.hasFailures, isTrue);
+
+      sync.simulateRejection = false;
+      await controller.saveEntry(
+        ScoutEntry(matchId: 'match-1', teamNumber: 254),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushed.map((e) => e.teamNumber).toSet(), <int>{971, 254});
+      expect(sync.status.state, ScoutingSyncState.synced);
+      expect(controller.failedWrites.hasFailures, isFalse);
+    },
+  );
+
+  test('a generic push failure still reports offline, not rejected', () async {
+    final sync = FakeScoutingSyncService()..simulateOutage = true;
+    final controller = ScoutingController(
+      storage: FakeScoutingStorage(),
+      syncService: sync,
+    );
+    await controller.bootstrap();
+
+    await controller.saveEntry(ScoutEntry(matchId: 'match-1', teamNumber: 971));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(sync.status.state, ScoutingSyncState.offline);
+
+    expect(controller.failedWrites.hasFailures, isFalse);
   });
 
   test('deleteEntry forwards the deleted entry to the sync service', () async {
@@ -639,4 +687,173 @@ void main() {
       expect(controller.failedWrites.hasFailures, isFalse);
     },
   );
+
+  group('re-pushing entries the server never confirmed', () {
+    test(
+      'bootstrap pushes only the entries the server has not confirmed',
+      () async {
+        final storage = FakeScoutingStorage();
+        await storage.saveEntry(
+          ScoutEntry(id: 'e-1', matchId: 'match-1', teamNumber: 1),
+        );
+        await storage.saveEntry(
+          ScoutEntry(id: 'e-2', matchId: 'match-1', teamNumber: 2),
+        );
+        await storage.saveEntry(
+          ScoutEntry(id: 'e-3', matchId: 'match-1', teamNumber: 3),
+        );
+        storage.syncedIds = <String>{'e-3'};
+
+        final sync = FakeScoutingSyncService();
+        final controller = ScoutingController(
+          storage: storage,
+          syncService: sync,
+        );
+        await controller.bootstrap();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(sync.pushed.map((e) => e.id).toSet(), <String>{'e-1', 'e-2'});
+      },
+    );
+
+    test(
+      'a status flip from offline to synced re-pushes unconfirmed entries once',
+      () async {
+        final storage = FakeScoutingStorage();
+        await storage.saveEntry(
+          ScoutEntry(id: 'e-1', matchId: 'match-1', teamNumber: 1),
+        );
+        final sync = FakeScoutingSyncService(
+          initialState: ScoutingSyncState.signedOut,
+        );
+        final controller = ScoutingController(
+          storage: storage,
+          syncService: sync,
+        );
+        await controller.bootstrap();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(sync.pushed, isEmpty);
+
+        sync.emitStatus(
+          const ScoutingSyncStatus(state: ScoutingSyncState.offline),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(sync.pushed, isEmpty);
+
+        sync.emitStatus(
+          const ScoutingSyncStatus(state: ScoutingSyncState.synced),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(sync.pushed.map((e) => e.id).toList(), <String>['e-1']);
+      },
+    );
+
+    test('a rejected status does not trigger a re-push', () async {
+      final storage = FakeScoutingStorage();
+      await storage.saveEntry(
+        ScoutEntry(id: 'e-1', matchId: 'match-1', teamNumber: 1),
+      );
+      final sync = FakeScoutingSyncService(
+        initialState: ScoutingSyncState.signedOut,
+      );
+      final controller = ScoutingController(
+        storage: storage,
+        syncService: sync,
+      );
+      await controller.bootstrap();
+      await Future<void>.delayed(Duration.zero);
+
+      sync.emitStatus(
+        const ScoutingSyncStatus(state: ScoutingSyncState.rejected),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushed, isEmpty);
+    });
+
+    test('the signedOut -> syncing -> synced handshake after a relaunch '
+        're-pushes unconfirmed entries', () async {
+      final storage = FakeScoutingStorage();
+      await storage.saveEntry(
+        ScoutEntry(id: 'e-1', matchId: 'match-1', teamNumber: 1),
+      );
+      await storage.saveEntry(
+        ScoutEntry(id: 'e-2', matchId: 'match-1', teamNumber: 2),
+      );
+      final sync = FakeScoutingSyncService(
+        initialState: ScoutingSyncState.signedOut,
+      );
+      final controller = ScoutingController(
+        storage: storage,
+        syncService: sync,
+      );
+      await controller.bootstrap();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushed, isEmpty);
+
+      sync.emitStatus(
+        const ScoutingSyncStatus(state: ScoutingSyncState.syncing),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushed, isEmpty);
+
+      sync.emitStatus(
+        const ScoutingSyncStatus(state: ScoutingSyncState.synced),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushed.where((e) => e.id == 'e-1').length, 1);
+      expect(sync.pushed.where((e) => e.id == 'e-2').length, 1);
+    });
+
+    test(
+      'a burst of recovery status flips re-pushes each entry only once',
+      () async {
+        final storage = FakeScoutingStorage();
+        await storage.saveEntry(
+          ScoutEntry(id: 'e-1', matchId: 'match-1', teamNumber: 1),
+        );
+        await storage.saveEntry(
+          ScoutEntry(id: 'e-2', matchId: 'match-1', teamNumber: 2),
+        );
+        final sync = FakeScoutingSyncService(
+          initialState: ScoutingSyncState.signedOut,
+        );
+        final controller = ScoutingController(
+          storage: storage,
+          syncService: sync,
+        );
+        await controller.bootstrap();
+        await Future<void>.delayed(Duration.zero);
+        expect(sync.pushed, isEmpty);
+
+        sync.emitStatus(
+          const ScoutingSyncStatus(state: ScoutingSyncState.offline),
+        );
+        sync.emitStatus(
+          const ScoutingSyncStatus(state: ScoutingSyncState.synced),
+        );
+        sync.emitStatus(
+          const ScoutingSyncStatus(state: ScoutingSyncState.offline),
+        );
+        sync.emitStatus(
+          const ScoutingSyncStatus(state: ScoutingSyncState.synced),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          sync.pushed.where((e) => e.id == 'e-1').length,
+          1,
+          reason: 'e-1 should not be re-pushed twice for one burst',
+        );
+        expect(
+          sync.pushed.where((e) => e.id == 'e-2').length,
+          1,
+          reason: 'e-2 should not be re-pushed twice for one burst',
+        );
+      },
+    );
+  });
 }

@@ -7,6 +7,7 @@ class SyncStatusPill extends StatelessWidget {
     required this.label,
     required this.icon,
     this.isFailure = false,
+    this.tooltip,
     super.key,
   });
 
@@ -14,12 +15,14 @@ class SyncStatusPill extends StatelessWidget {
   final IconData icon;
   final bool isFailure;
 
+  final String? tooltip;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final ink = isFailure ? colorScheme.error : colorScheme.onSurface;
 
-    return Container(
+    final pill = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colorScheme.secondary,
@@ -52,5 +55,9 @@ class SyncStatusPill extends StatelessWidget {
         },
       ),
     );
+
+    final tooltipText = tooltip;
+    if (tooltipText == null || tooltipText.isEmpty) return pill;
+    return Tooltip(message: tooltipText, child: pill);
   }
 }
