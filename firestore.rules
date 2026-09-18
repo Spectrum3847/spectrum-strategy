@@ -370,8 +370,8 @@ service cloud.firestore {
     function isValidScoutEntry(data, entryId) {
       return data.keys().hasOnly(['id', 'matchId', 'teamNumber', 'alliance',
               'notes', 'authorUid', 'authorDisplayName', 'updatedAt',
-              'updatedAtTs', 'byPhase', 'fieldValues', 'tbaMatchKey',
-              'strokesByPhase', 'addedManually'])
+              'createdAt', 'updatedAtTs', 'byPhase', 'fieldValues',
+              'tbaMatchKey', 'strokesByPhase', 'addedManually'])
         && data.id == entryId
         && data.matchId is string
         && data.matchId.size() > 0
@@ -388,6 +388,8 @@ service cloud.firestore {
         && data.authorDisplayName is string
         && data.authorDisplayName.size() <= 128
         && isSaneTimestamp(data.updatedAt)
+
+        && (!('createdAt' in data) || isSaneTimestamp(data.createdAt))
         && hasBoundedUpdatedAtTs(data)
         && data.byPhase is map
 
@@ -576,12 +578,15 @@ service cloud.firestore {
     }
 
     function isValidStrategyBoard(data, boardId) {
-      return data.keys().hasOnly(['id', 'eventName', 'matchNumber', 'alliance',
-              'teamNumbers', 'selectedPhase', 'selectedTool',
+      return data.keys().hasOnly(['id', 'eventKey', 'eventName', 'matchNumber',
+              'alliance', 'teamNumbers', 'selectedPhase', 'selectedTool',
               'selectedFieldId', 'selectedRobotTeam', 'updatedAt',
               'updatedAtTs', 'strokesByPhase', 'markersByPhase',
               'notesByPhase', 'authorUid', 'authorDisplayName'])
         && data.id == boardId
+
+        && (!('eventKey' in data)
+            || (data.eventKey is string && data.eventKey.size() <= 64))
         && data.matchNumber is int
         && data.matchNumber >= 1
         && data.matchNumber <= 999

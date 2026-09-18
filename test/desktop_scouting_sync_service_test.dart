@@ -215,7 +215,8 @@ void main() {
       ),
     );
     await denied.delete(entry);
-    expect(denied.status.state, ScoutingSyncState.noAccess);
+
+    expect(denied.status.state, ScoutingSyncState.rejected);
   });
 
   test('overlapping syncNow calls apply in call order, not arrival', () async {

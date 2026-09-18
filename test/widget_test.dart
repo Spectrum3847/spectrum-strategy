@@ -219,8 +219,8 @@ void main() {
   });
 
   testWidgets(
-    'the glass app bar and tab bar carry the app theme brightness, not the '
-    'system default (#1745)',
+    'the glass tab menu carries the app theme brightness, not the system '
+    'default (#1745)',
     (tester) async {
       const user = SpectrumUser(uid: 'strat-uid', displayName: 'Strat');
       final shell = await _buildShell(
@@ -233,9 +233,14 @@ void main() {
       unawaited(shell.themeController.setLiquidGlass(true));
       await tester.pumpAndSettle();
 
-      for (final glass in tester.widgetList<LiquidGlass>(
+      await tester.tap(find.byTooltip('Tabs'));
+      await tester.pumpAndSettle();
+
+      final glassWidgets = tester.widgetList<LiquidGlass>(
         find.byType(LiquidGlass),
-      )) {
+      );
+      expect(glassWidgets, isNotEmpty);
+      for (final glass in glassWidgets) {
         expect(glass.brightness, Brightness.dark);
       }
     },

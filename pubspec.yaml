@@ -3,7 +3,7 @@ description: "FRC strategy / scouting / prematch app. Ships to iOS, Android, and
 
 publish_to: 'none'
 
-version: 1.0.0+26
+version: 1.0.1+27
 
 environment:
   sdk: ^3.13.0

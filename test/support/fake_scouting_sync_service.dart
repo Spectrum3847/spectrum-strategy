@@ -26,6 +26,8 @@ class FakeScoutingSyncService implements ScoutingSyncService {
 
   bool simulateOutage = false;
 
+  bool simulateRejection = false;
+
   @override
   Stream<ScoutingSyncStatus> get statusStream => _statusController.stream;
 
@@ -42,26 +44,46 @@ class FakeScoutingSyncService implements ScoutingSyncService {
 
   @override
   Future<void> push(ScoutEntry entry) async {
+    if (simulateRejection) {
+      _emitRejected('permission-denied: push rejected');
+      return;
+    }
     if (simulateOutage) {
       _emitOffline('push failed');
       return;
     }
     pushed.add(entry);
+    _emitSynced();
   }
 
   @override
   Future<void> delete(ScoutEntry entry) async {
+    if (simulateRejection) {
+      _emitRejected('permission-denied: delete rejected');
+      return;
+    }
     if (simulateOutage) {
       _emitOffline('delete failed');
       return;
     }
     deleted.add(entry);
+    _emitSynced();
   }
 
   void _emitOffline(String error) {
     emitStatus(
       ScoutingSyncStatus(state: ScoutingSyncState.offline, error: error),
     );
+  }
+
+  void _emitRejected(String error) {
+    emitStatus(
+      ScoutingSyncStatus(state: ScoutingSyncState.rejected, error: error),
+    );
+  }
+
+  void _emitSynced() {
+    emitStatus(const ScoutingSyncStatus(state: ScoutingSyncState.synced));
   }
 
   @override

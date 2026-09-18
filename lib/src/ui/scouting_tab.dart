@@ -908,6 +908,15 @@ class _SyncStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (status.state == ScoutingSyncState.rejected) {
+      return SyncStatusPill(
+        label: 'Not accepted',
+        icon: Icons.report_gmailerrorred_rounded,
+        isFailure: true,
+        tooltip: status.error,
+      );
+    }
+
     if (failedWrites.hasFailures) {
       final count = failedWrites.unlandedCount;
       return SyncStatusPill(
@@ -929,6 +938,10 @@ class _SyncStatusPill extends StatelessWidget {
       ScoutingSyncState.syncing => ('Syncing...', Icons.sync_rounded),
       ScoutingSyncState.synced => ('Synced', Icons.cloud_done_rounded),
       ScoutingSyncState.offline => ('Offline', Icons.cloud_off_rounded),
+      ScoutingSyncState.rejected => (
+        'Not accepted',
+        Icons.report_gmailerrorred_rounded,
+      ),
     };
 
     return SyncStatusPill(label: label, icon: icon);

@@ -135,7 +135,7 @@ class DesktopScoutingSyncService implements ScoutingSyncService {
     } catch (error) {
       await _queue.mark('scoutEntries', stamped.id);
       await _syncPendingCount();
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     } finally {
       _inFlightWrites.endWrite(stamped.id, token);
     }
@@ -166,7 +166,7 @@ class DesktopScoutingSyncService implements ScoutingSyncService {
     } catch (error) {
       await _queue.mark(_deletedCollection, id);
       await _syncPendingCount();
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     } finally {
       _inFlightWrites.endWrite(id, token);
     }
@@ -319,10 +319,23 @@ class DesktopScoutingSyncService implements ScoutingSyncService {
     );
   }
 
-  void _emitFailure(Object error) {
+  void _emitFailure(Object error, {bool isWrite = false}) {
     _pollScheduler.onFailure();
+    if (isWrite &&
+        error is fc.FirestoreApiException &&
+        (error.statusCode == 403 || error.status == 'PERMISSION_DENIED')) {
+      _emit(
+        ScoutingSyncStatus(
+          state: ScoutingSyncState.rejected,
+          lastSyncedAt: _status.lastSyncedAt,
+          error: error.message,
+        ),
+      );
+      return;
+    }
 
-    if (error is fc.FirestoreApiException &&
+    if (!isWrite &&
+        error is fc.FirestoreApiException &&
         (error.statusCode == 403 || error.statusCode == 401)) {
       _emit(
         ScoutingSyncStatus(

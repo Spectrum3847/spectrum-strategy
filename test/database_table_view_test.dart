@@ -509,4 +509,83 @@ void main() {
 
     expect(find.byIcon(Icons.edit_note_rounded), findsOneWidget);
   });
+
+  group('per-row delete action (#1958)', () {
+    testWidgets('a delete action is shown for a row the user may edit', (
+      tester,
+    ) async {
+      await pumpTable(tester, canEdit: true);
+
+      expect(find.byTooltip('Delete entry'), findsOneWidget);
+    });
+
+    testWidgets(
+      'a delete action is hidden for a scouter on someone else\'s row',
+      (tester) async {
+        await pumpTable(
+          tester,
+          canEdit: false,
+          currentUserUid: 'someone-else-uid',
+        );
+
+        expect(find.byTooltip('Delete entry'), findsNothing);
+      },
+    );
+
+    testWidgets('a scouter still sees the delete action on their own row', (
+      tester,
+    ) async {
+      await pumpTable(tester, canEdit: false, currentUserUid: seededAuthorUid);
+
+      expect(find.byTooltip('Delete entry'), findsOneWidget);
+    });
+
+    testWidgets(
+      'tapping delete then confirming removes the entry via the controller',
+      (tester) async {
+        final scouting = await pumpTable(tester, canEdit: true);
+
+        await tester.tap(find.byTooltip('Delete entry'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Delete entry?'), findsOneWidget);
+
+        await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+        await tester.pumpAndSettle();
+
+        expect(scouting.entries, isEmpty);
+      },
+    );
+
+    testWidgets('tapping delete then cancelling keeps the entry', (
+      tester,
+    ) async {
+      final scouting = await pumpTable(tester, canEdit: true);
+
+      await tester.tap(find.byTooltip('Delete entry'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(scouting.entries, hasLength(1));
+    });
+
+    testWidgets('a failed delete surfaces the controller error and clears it', (
+      tester,
+    ) async {
+      final storage = LaggyScoutingStorage();
+      storage.deleteShouldFail = true;
+      final scouting = await pumpTable(tester, canEdit: true, storage: storage);
+
+      await tester.tap(find.byTooltip('Delete entry'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(scouting.entries, hasLength(1));
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(scouting.lastError, isNull);
+    });
+  });
 }

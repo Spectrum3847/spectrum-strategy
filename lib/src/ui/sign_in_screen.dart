@@ -89,6 +89,12 @@ class _SignInScreenState extends State<SignInScreen> {
       case ScoutingSyncState.offline:
         return 'Offline. Entries stay on this device and sync when the '
             'connection returns.';
+      case ScoutingSyncState.rejected:
+        final reason = status.error;
+        return reason == null
+            ? 'The server rejected the last write. It stays on this '
+                  'device until this is fixed.'
+            : 'The server rejected the last write: $reason';
     }
   }
 

@@ -17,6 +17,7 @@ import '../theme/strategy_palette.dart';
 import '../widgets/entry_flag_badge.dart';
 import 'glass_chrome.dart';
 import '../widgets/glass_popup_menu.dart';
+import '../widgets/glass_modal.dart';
 
 class DatabaseTab extends StatefulWidget {
   const DatabaseTab({
@@ -290,7 +291,7 @@ class _DatabaseTabState extends State<DatabaseTab> {
   }
 
   double _colWidth(String key, {double d = 100}) =>
-      _columnWidths.putIfAbsent(key, () => d);
+      _columnWidths.putIfAbsent(key, () => key == '__delete__' ? 56 : d);
 
   bool _canEditEntry(ScoutEntry entry) =>
       widget.canEditAnyEntry ||
@@ -385,6 +386,8 @@ class _DatabaseTabState extends State<DatabaseTab> {
         '__check__' => 'Check',
         '__author__' => 'Author',
         '__notes__' => 'Notes',
+
+        '__delete__' => '',
         _ => field?.title ?? key,
       };
 
@@ -415,6 +418,13 @@ class _DatabaseTabState extends State<DatabaseTab> {
         );
       case '__notes__':
         return Text(entry.notes, maxLines: 1, overflow: TextOverflow.ellipsis);
+      case '__delete__':
+        if (!_canEditEntry(entry)) return const SizedBox.shrink();
+        return IconButton(
+          icon: const Icon(Icons.delete_outline_rounded),
+          tooltip: 'Delete entry',
+          onPressed: () => _confirmDeleteEntry(entry),
+        );
       default:
         return Text(_cellText(entry, key, field));
     }
@@ -425,7 +435,9 @@ class _DatabaseTabState extends State<DatabaseTab> {
     String key,
     ScoutConfigField? field,
   ) {
-    if (key == '__check__' || !_canEditEntry(entry)) return null;
+    if (key == '__check__' || key == '__delete__' || !_canEditEntry(entry)) {
+      return null;
+    }
     return switch (key) {
       '__author__' => () => _editEntryCell(
         context,
@@ -471,21 +483,32 @@ class _DatabaseTabState extends State<DatabaseTab> {
       ...sortedKeys,
       '__author__',
       '__notes__',
+      '__delete__',
     ];
+
+    final deleteWidth = _colWidth('__delete__') + _resizeHandleWidth;
 
     final table = TableView.builder(
       pinnedRowCount: 1,
       columnCount: columnKeys.length,
       rowCount: entries.length + 1,
       columnBuilder: (int column) {
-        final width = _colWidth(columnKeys[column]) + _resizeHandleWidth;
+        final key = columnKeys[column];
+        final width = _colWidth(key) + _resizeHandleWidth;
         final extent = FixedTableSpanExtent(width);
-        if (column < columnKeys.length - 1) {
+        if (key != '__notes__') {
           return TableSpan(extent: extent);
         }
 
         return TableSpan(
-          extent: MaxTableSpanExtent(extent, const RemainingTableSpanExtent()),
+          extent: MaxTableSpanExtent(
+            extent,
+            CombiningTableSpanExtent(
+              const RemainingTableSpanExtent(),
+              FixedTableSpanExtent(deleteWidth),
+              (remaining, delete) => remaining - delete,
+            ),
+          ),
         );
       },
       rowBuilder: (int row) {
@@ -571,6 +594,41 @@ class _DatabaseTabState extends State<DatabaseTab> {
         );
       },
     );
+  }
+
+  Future<void> _confirmDeleteEntry(ScoutEntry entry) async {
+    final confirmed = await showGlassConfirmDialog<bool>(
+      context: context,
+      title: 'Delete entry?',
+      content: Text(
+        entry.teamNumber > 0
+            ? 'This will remove the entry for team ${entry.teamNumber}, '
+                  'including from the shared database.'
+            : 'This will remove the entry, including from the shared '
+                  'database.',
+      ),
+      actionsBuilder: (dialogContext) => [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('Delete'),
+        ),
+      ],
+    );
+    if (confirmed != true) return;
+    final deleted = await widget.scoutingController.deleteEntry(entry.id);
+    if (!mounted || deleted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          widget.scoutingController.lastError ?? 'Could not delete that entry.',
+        ),
+      ),
+    );
+    widget.scoutingController.clearLastError();
   }
 
   @override
@@ -844,6 +902,13 @@ class _SyncStatusRow extends StatelessWidget {
         'Offline — showing cached entries',
         Icons.cloud_off_rounded,
         colorScheme.onSurfaceVariant,
+      ),
+      ScoutingSyncState.rejected => (
+        status.error != null
+            ? 'Not accepted: ${status.error}'
+            : 'Not accepted. The server rejected this write.',
+        Icons.report_gmailerrorred_rounded,
+        colorScheme.error,
       ),
     };
 
