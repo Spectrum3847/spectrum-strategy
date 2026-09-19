@@ -1,14 +1,12 @@
 name: Release
 
-run-name: "Release ${{ inputs.tag || github.ref_name }}"
+run-name: "Release ${{ inputs.tag }}"
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to (re)build and publish, e.g. v1.0.0"
+        description: "Tag to build and publish, e.g. v1.0.0"
         required: true
         type: string
 
@@ -35,7 +33,7 @@ jobs:
           DISPATCH_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          TAG="${DISPATCH_TAG:-${GITHUB_REF_NAME}}"
+          TAG="$DISPATCH_TAG"
           VERSION="${TAG#v}"
           PRERELEASE=false
           case "$TAG" in *-rc.*) PRERELEASE=true ;; esac
