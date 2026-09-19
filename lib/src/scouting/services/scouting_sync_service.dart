@@ -50,8 +50,10 @@ abstract class ScoutingSyncService {
   ScoutingSyncStatus get status;
   Stream<List<ScoutEntry>> get remoteEntriesStream;
   Future<void> initialize();
-  Future<void> push(ScoutEntry entry);
-  Future<void> delete(ScoutEntry entry);
+
+  Future<ScoutingSyncStatus?> push(ScoutEntry entry);
+
+  Future<ScoutingSyncStatus?> delete(ScoutEntry entry);
   Future<void> syncNow();
   Future<void> dispose();
 }
@@ -102,10 +104,10 @@ class FirestoreScoutingSyncService implements ScoutingSyncService {
   }
 
   @override
-  Future<void> push(ScoutEntry entry) async {
+  Future<ScoutingSyncStatus?> push(ScoutEntry entry) async {
     final user = _authService.currentUser;
     if (user == null) {
-      return;
+      return null;
     }
 
     final stamped = entry.copyWith(
@@ -120,34 +122,38 @@ class FirestoreScoutingSyncService implements ScoutingSyncService {
 
         'updatedAtTs': Timestamp.fromDate(stamped.updatedAt.toUtc()),
       });
-      _emit(
-        ScoutingSyncStatus(
-          state: ScoutingSyncState.synced,
-          lastSyncedAt: DateTime.now(),
-        ),
+      final result = ScoutingSyncStatus(
+        state: ScoutingSyncState.synced,
+        lastSyncedAt: DateTime.now(),
       );
+      _emit(result);
+      return result;
     } catch (error) {
-      _emit(_pushOrDeleteFailure(error));
+      final result = _pushOrDeleteFailure(error);
+      _emit(result);
+      return result;
     }
   }
 
   @override
-  Future<void> delete(ScoutEntry entry) async {
+  Future<ScoutingSyncStatus?> delete(ScoutEntry entry) async {
     final user = _authService.currentUser;
     if (user == null) {
-      return;
+      return null;
     }
 
     try {
       await _collection().doc(entry.id).delete();
-      _emit(
-        ScoutingSyncStatus(
-          state: ScoutingSyncState.synced,
-          lastSyncedAt: DateTime.now(),
-        ),
+      final result = ScoutingSyncStatus(
+        state: ScoutingSyncState.synced,
+        lastSyncedAt: DateTime.now(),
       );
+      _emit(result);
+      return result;
     } catch (error) {
-      _emit(_pushOrDeleteFailure(error));
+      final result = _pushOrDeleteFailure(error);
+      _emit(result);
+      return result;
     }
   }
 

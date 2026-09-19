@@ -144,6 +144,7 @@ void main() {
         expect(roles.canEditScoutConfig, isFalse);
         expect(roles.canEditAccuracyMapping, isFalse);
         expect(roles.canEditAnyEntry, isFalse);
+        expect(roles.canEditMatchInfo, isFalse);
       }
     });
 
@@ -156,6 +157,7 @@ void main() {
         expect(roles.canEditScoutConfig, isTrue);
         expect(roles.canEditAccuracyMapping, isTrue);
         expect(roles.canEditAnyEntry, isTrue);
+        expect(roles.canEditMatchInfo, isTrue);
       }
     });
 
