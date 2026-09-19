@@ -21,7 +21,7 @@ on:
         options: [build, cleanup]
         default: build
       targets:
-        description: "Comma-separated subset of ios,desktop"
+        description: "Comma-separated subset of ios,desktop,web"
         required: false
         type: string
         default: "ios,desktop"
@@ -46,6 +46,9 @@ env:
   SITE: frcspectrumstrategy-pr
   SITE_URL: https://frcspectrumstrategy-pr.web.app
 
+  PREVIEW_SITE: frcspectrumstrategy-preview
+  PREVIEW_SITE_URL: https://frcspectrumstrategy-preview.web.app
+
 jobs:
   start:
     runs-on: ubuntu-latest
@@ -55,6 +58,7 @@ jobs:
     outputs:
       ios: ${{ steps.plan.outputs.ios }}
       desktop: ${{ steps.plan.outputs.desktop }}
+      web: ${{ steps.plan.outputs.web }}
     steps:
       - name: Decide what to build
         id: plan
@@ -76,6 +80,7 @@ jobs:
           fi
           ios=false
           desktop=false
+          web=false
           if [ "$ACTION" = "build" ]; then
             if [ -z "$SHA" ]; then
               echo "::error::action=build needs a head sha"
@@ -83,7 +88,8 @@ jobs:
             fi
             case ",$TARGETS," in *,ios,*) ios=true ;; esac
             case ",$TARGETS," in *,desktop,*) desktop=true ;; esac
-            if [ "$ios" = false ] && [ "$desktop" = false ]; then
+            case ",$TARGETS," in *,web,*) web=true ;; esac
+            if [ "$ios" = false ] && [ "$desktop" = false ] && [ "$web" = false ]; then
               echo "::error::targets '$TARGETS' names nothing to build"
               exit 1
             fi
@@ -91,6 +97,7 @@ jobs:
           {
             echo "ios=$ios"
             echo "desktop=$desktop"
+            echo "web=$web"
           } >> "$GITHUB_OUTPUT"
 
       - name: Point the PR comment at this run
@@ -394,6 +401,79 @@ jobs:
           gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber \
             "$ARTIFACT"
 
+  web:
+    needs: start
+    if: needs.start.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SHA: ${{ inputs.sha }}
+      PR: ${{ inputs.pr }}
+    steps:
+      - name: Checkout the PR head from the private repo
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ inputs.sha }}
+          token: ${{ secrets.MIRROR_SOURCE_TOKEN }}
+          persist-credentials: false
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Build web
+        run: |
+          build_date="$(date -u +%Y-%m-%d)"
+          flutter build web --release --wasm --no-web-resources-cdn --base-href / \
+            --dart-define=GIT_COMMIT="${SHA:0:7}" \
+            --dart-define=GIT_BRANCH="pr-$PR" \
+            --dart-define=BUILD_DATE="$build_date" \
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
+            --dart-define=POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
+          python3 scripts/web/gen_sw.py build/web
+
+      - name: Deploy to the preview Hosting site
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NIGHTLY_HOSTING }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+
+          npx -y firebase-tools@latest hosting:sites:create "$PREVIEW_SITE" \
+            --project frcspectrumstrategy 2>/dev/null || true
+
+          deploy_output=$(npx -y firebase-tools@latest deploy \
+            --only "hosting:$PREVIEW_SITE" \
+            --project frcspectrumstrategy --non-interactive 2>&1) && deploy_exit=0 || deploy_exit=$?
+
+          if [ "$deploy_exit" -ne 0 ]; then
+            if echo "$deploy_output" | grep -q "current active version"; then
+              echo "Preview already up to date (version is current active)."
+            else
+              echo "$deploy_output"
+              exit 1
+            fi
+          else
+            echo "$deploy_output"
+          fi
+          rm -f "$RUNNER_TEMP/sa.json"
+
+      - name: Verify the deployed site serves sw.js
+        run: |
+          sleep 10
+          curl -fsS --retry 5 --retry-delay 3 --retry-connrefused "$PREVIEW_SITE_URL/sw.js" \
+            | grep -q "spectrum-.*-[0-9a-f]"
+          status="$(curl -sS --retry 5 --retry-delay 3 --retry-connrefused \
+            -o /dev/null -w '%{http_code}' "$PREVIEW_SITE_URL/flutter_service_worker.js")"
+          [ "$status" = "404" ]
+
   publish-source:
 
     needs: [start, ios]
@@ -527,7 +607,7 @@ jobs:
           exit 1
 
   comment:
-    needs: [start, ios, desktop, publish-source]
+    needs: [start, ios, desktop, web, publish-source]
     if: always() && inputs.comment_id != '' && inputs.action == 'build'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -541,8 +621,10 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           WANT_IOS: ${{ needs.start.outputs.ios }}
           WANT_DESKTOP: ${{ needs.start.outputs.desktop }}
+          WANT_WEB: ${{ needs.start.outputs.web }}
           IOS: ${{ needs.ios.result }}
           DESKTOP: ${{ needs.desktop.result }}
+          WEB: ${{ needs.web.result }}
           SOURCE: ${{ needs['publish-source'].result }}
         run: |
           set -euo pipefail
@@ -570,7 +652,16 @@ jobs:
               fi
               echo
             fi
-            echo "A later \`bot, build ios\`, \`bot, build desktop\` or \`bot, build apps\` on this PR replaces these. They are removed when the PR is merged or closed."
+            if [ "$WANT_WEB" = "true" ]; then
+              if [ "$WEB" = "success" ]; then
+                echo "**Web preview:** $PREVIEW_SITE_URL"
+                echo "The preview site holds one build at a time, so a later \`bot, build\` on any PR replaces this one."
+              else
+                echo "**Web preview:** failed ($WEB). See the run."
+              fi
+              echo
+            fi
+            echo "A later \`bot, build\`, \`bot, build ios\`, \`bot, build desktop\` or \`bot, build apps\` on this PR replaces the matching build above. They are removed when the PR is merged or closed."
           } > body.md
           gh api --method PATCH "repos/$SOURCE_REPO/issues/comments/$COMMENT_ID" \
             -F body=@body.md --silent
