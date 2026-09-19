@@ -1,0 +1,300 @@
+name: Release
+
+run-name: "Release ${{ inputs.tag }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and publish, e.g. v1.0.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_REPO: Spectrum3847/SpectrumStrategy
+  FLUTTER_VERSION: 3.47.5
+
+jobs:
+  context:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      git_commit: ${{ steps.commit.outputs.sha }}
+    steps:
+      - name: Resolve tag and channel
+        id: resolve
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          TAG="$DISPATCH_TAG"
+          VERSION="${TAG#v}"
+          PRERELEASE=false
+          case "$TAG" in *-rc.*) PRERELEASE=true ;; esac
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "prerelease=$PRERELEASE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve the source commit
+        id: commit
+        env:
+          GH_TOKEN: ${{ secrets.MIRROR_SOURCE_TOKEN }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          sha="$(gh api "repos/$SOURCE_REPO/commits/$TAG" --jq .sha)"
+          echo "sha=${sha:0:7}" >> "$GITHUB_OUTPUT"
+
+  desktop:
+    needs: context
+    uses: ./.github/workflows/build-desktop.yml
+    with:
+      repository: Spectrum3847/SpectrumStrategy
+      ref: ${{ needs.context.outputs.tag }}
+      channel: release
+      git_commit: ${{ needs.context.outputs.git_commit }}
+      git_branch: ${{ needs.context.outputs.tag }}
+      needs_source_token: true
+      restore_docs_artifact: false
+    secrets: inherit
+
+  ios:
+    needs: context
+    uses: ./.github/workflows/build-ios.yml
+    with:
+      repository: Spectrum3847/SpectrumStrategy
+      ref: ${{ needs.context.outputs.tag }}
+      needs_source_token: true
+      restore_docs_artifact: false
+      version_name: ${{ needs.context.outputs.version }}
+      build_number: ${{ github.run_number }}
+      git_commit: ${{ needs.context.outputs.git_commit }}
+      git_branch: ${{ needs.context.outputs.tag }}
+    secrets: inherit
+
+  publish:
+    needs: [context, desktop, ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.context.outputs.tag }}
+      VERSION: ${{ needs.context.outputs.version }}
+      PRERELEASE: ${{ needs.context.outputs.prerelease }}
+      CHANNEL: ${{ needs.context.outputs.prerelease == 'true' && 'rc' || 'stable' }}
+      SOURCE_JSON: ${{ needs.context.outputs.prerelease == 'true' && 'rc.json' || 'stable.json' }}
+      SITE: ${{ needs.context.outputs.prerelease == 'true' && 'frcspectrumstrategy-rc' || 'frcspectrumstrategy-stable' }}
+      SITE_URL: ${{ needs.context.outputs.prerelease == 'true' && 'https://frcspectrumstrategy-rc.web.app' || 'https://frcspectrumstrategy-stable.web.app' }}
+      IPA_FILE: ${{ needs.ios.outputs.ipa_filename }}
+      IOS_VERSION: ${{ needs.ios.outputs.version }}
+      IOS_BUILD: ${{ needs.ios.outputs.build }}
+    steps:
+
+      - name: Checkout the release tag
+        uses: actions/checkout@v7
+        with:
+          repository: Spectrum3847/SpectrumStrategy
+          ref: ${{ env.TAG }}
+          token: ${{ secrets.MIRROR_SOURCE_TOKEN }}
+          persist-credentials: false
+
+      - name: Download the Windows artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-windows
+          path: release-out
+      - name: Download the macOS artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-macos
+          path: release-out
+      - name: Download the Linux artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-linux
+          path: release-out
+
+      - name: Download the iOS build
+        uses: actions/download-artifact@v8
+        with:
+          name: ios-build
+          path: altstore_out
+
+      - name: Ensure the mirror release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          FLAGS=()
+          if [ "$PRERELEASE" = "true" ]; then
+            FLAGS+=(--prerelease)
+          fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --title "Spectrum Strategy $VERSION" \
+            --notes "Release $VERSION" \
+            "${FLAGS[@]}" \
+            2>/dev/null || true
+
+      - name: Upload desktop and iOS artifacts to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+              release-out/SpectrumStrategy-windows-x64.zip \
+              release-out/SpectrumStrategy-macos.zip \
+              release-out/SpectrumStrategy-linux-x86_64.AppImage \
+              "altstore_out/$IPA_FILE"; then
+              exit 0
+            fi
+            echo "Upload attempt $attempt failed; retrying in 15s"
+            sleep 15
+          done
+          echo "Upload failed after 3 attempts"
+          exit 1
+
+      - name: Fetch existing AltStore source for history
+        run: |
+          set -euo pipefail
+          status="$(curl -sS -o existing-source.json -w '%{http_code}' "$SITE_URL/$SOURCE_JSON")"
+          if [ "$status" = "404" ]; then
+
+            rm -f existing-source.json
+          elif [ "$status" != "200" ]; then
+            echo "Failed to fetch $SITE_URL/$SOURCE_JSON (HTTP $status)"
+            exit 1
+          fi
+
+      - name: Generate AltStore source JSON
+        run: |
+          set -euo pipefail
+          BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 scripts/altstore/generate_source.py \
+            --channel "$CHANNEL" \
+            --out "altstore_out/$SOURCE_JSON" \
+            --ipa "altstore_out/$IPA_FILE" \
+            --version "$IOS_VERSION" \
+            --build-version "$IOS_BUILD" \
+            --date "$BUILD_DATE" \
+            --download-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$IPA_FILE" \
+            --icon-url "$SITE_URL/icon.png" \
+            --description "Spectrum Strategy $IOS_VERSION" \
+            --existing existing-source.json
+
+      - name: Set up Node
+
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+
+      - name: Deploy source JSON and icon to Firebase Hosting
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NIGHTLY_HOSTING }}
+        run: |
+          set -euo pipefail
+
+          rm -f "altstore_out/$IPA_FILE"
+          npm ci --ignore-scripts --prefix scripts/firebase-deploy
+          export PATH="$PWD/scripts/firebase-deploy/node_modules/.bin:$PATH"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+
+          cat > firebase.altstore.json <<JSON
+          { "hosting": { "site": "$SITE", "public": "altstore_out", "ignore": ["**/.*"], "headers": [ { "source": "**", "headers": [ { "key": "Access-Control-Allow-Origin", "value": "*" } ] }, { "source": "**/*.json", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] } ] } }
+          JSON
+
+          firebase deploy --only hosting \
+            --config firebase.altstore.json \
+            --project frcspectrumstrategy \
+            --non-interactive || true
+          rm -f "$RUNNER_TEMP/sa.json"
+
+  rc-web:
+
+    needs: context
+    if: needs.context.outputs.prerelease == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SITE: frcspectrumstrategy-rc-web
+      SITE_URL: https://frcspectrumstrategy-rc-web.web.app
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@v7
+        with:
+          repository: Spectrum3847/SpectrumStrategy
+          ref: ${{ needs.context.outputs.tag }}
+          token: ${{ secrets.MIRROR_SOURCE_TOKEN }}
+          persist-credentials: false
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Build web
+        env:
+          GIT_COMMIT: ${{ needs.context.outputs.git_commit }}
+          GIT_BRANCH: ${{ needs.context.outputs.tag }}
+        run: |
+          flutter pub get
+          flutter build web --release --wasm --no-web-resources-cdn --base-href / \
+            --dart-define=GIT_COMMIT="$GIT_COMMIT" \
+            --dart-define=GIT_BRANCH="$GIT_BRANCH" \
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
+            --dart-define=POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
+          python3 scripts/web/gen_sw.py build/web
+
+      - name: Deploy to the RC Hosting site
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NIGHTLY_HOSTING }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+
+          if ! npx -y firebase-tools@latest hosting:sites:list \
+              --project frcspectrumstrategy --non-interactive --json \
+              | grep -q "sites/$SITE\""; then
+            echo "Hosting site $SITE does not exist yet; skipping the RC web deploy."
+            echo "skipped=true" >> "$GITHUB_ENV"
+            rm -f "$RUNNER_TEMP/sa.json"
+            exit 0
+          fi
+
+          deploy_output=$(npx -y firebase-tools@latest deploy \
+            --only "hosting:$SITE" \
+            --project frcspectrumstrategy --non-interactive 2>&1) && deploy_exit=0 || deploy_exit=$?
+          if [ "$deploy_exit" -ne 0 ]; then
+            if echo "$deploy_output" | grep -q "current active version"; then
+              echo "RC site already up to date (version is current active)."
+            else
+              echo "$deploy_output"
+              exit 1
+            fi
+          else
+            echo "$deploy_output"
+          fi
+          echo "RC web live: $SITE_URL"
+          rm -f "$RUNNER_TEMP/sa.json"
+
+      - name: Verify the deployed site serves sw.js
+        if: env.skipped != 'true'
+        run: |
+          sleep 10
+          curl -fsS --retry 5 --retry-delay 3 --retry-connrefused "$SITE_URL/sw.js" \
+            | grep -q "spectrum-.*-[0-9a-f]"
+          status="$(curl -sS --retry 5 --retry-delay 3 --retry-connrefused \
+            -o /dev/null -w '%{http_code}' "$SITE_URL/flutter_service_worker.js")"
+          [ "$status" = "404" ]

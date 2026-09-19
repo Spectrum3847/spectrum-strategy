@@ -1,0 +1,11 @@
+{
+  "name": "spectrumstrategy-shift-reminders",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-07-01",
+  "account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
+  "vars": {
+    "FIREBASE_PROJECT": "frcspectrumstrategy",
+    "PLATFORM_PROJECT": "spectrumtasks-81c63"
+  },
+  "observability": { "enabled": true }
+}

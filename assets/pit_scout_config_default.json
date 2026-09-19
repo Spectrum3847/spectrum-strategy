@@ -1,0 +1,265 @@
+{
+  "title": "Pit Scouting",
+  "page_title": "Robot Inspection",
+  "delimiter": "\t",
+  "revision": 5,
+  "sections": [
+    {
+      "name": "Scouter",
+      "fields": [
+        {
+          "title": "Email",
+          "description": "",
+          "type": "text",
+          "required": false,
+          "code": "email",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        },
+        {
+          "title": "Scouter Name(s)",
+          "description": "",
+          "type": "text",
+          "required": false,
+          "code": "scouterNames",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        }
+      ]
+    },
+    {
+      "name": "Drive Team",
+      "fields": [
+        {
+          "title": "Drive Coach's name",
+          "description": "",
+          "type": "text",
+          "required": false,
+          "code": "driveCoachName",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        },
+        {
+          "title": "Is the drive coach a student or adult",
+          "description": "",
+          "type": "select",
+          "required": false,
+          "code": "driveCoachRole",
+          "formResetBehavior": "reset",
+          "defaultValue": "student",
+          "choices": {
+            "student": "Student",
+            "adult": "Adult"
+          }
+        },
+        {
+          "title": "Do they rotate drivers/drive teams each match?",
+          "description": "",
+          "type": "select",
+          "required": false,
+          "code": "driverRotation",
+          "formResetBehavior": "reset",
+          "defaultValue": "no",
+          "choices": {
+            "yes": "Yes",
+            "no": "No"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Field Map",
+      "fields": [
+        {
+          "title": "Field map",
+          "description": "Point at positions with the team, then attach a photo or PDF of the marked-up map.",
+          "type": "document",
+          "required": false,
+          "code": "fieldMap",
+          "formResetBehavior": "reset",
+          "defaultValue": "",
+          "referenceImageAsset": "assets/fields/wpilib/2026-rebuilt.png"
+        }
+      ]
+    },
+    {
+      "name": "Drivetrain",
+      "fields": [
+        {
+          "title": "Drive train",
+          "description": "",
+          "type": "select",
+          "required": true,
+          "code": "drivetrainType",
+          "formResetBehavior": "reset",
+          "defaultValue": "tank",
+          "choices": {
+            "tank": "Tank",
+            "swerve": "Swerve",
+            "other": "Other"
+          }
+        },
+        {
+          "title": "Drive train (other)",
+          "description": "",
+          "type": "text",
+          "required": false,
+          "code": "drivetrainOther",
+          "formResetBehavior": "reset",
+          "defaultValue": "",
+          "visibleWhenCode": "drivetrainType",
+          "visibleWhenValue": "other"
+        },
+        {
+          "title": "What kind of swerve modules is your robot using? Put N/A if don't know",
+          "description": "",
+          "type": "text",
+          "required": false,
+          "code": "swerveModuleType",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        },
+        {
+          "title": "What kind of gear ratios do your swerve modules use? Put N/A if don't know",
+          "description": "",
+          "type": "text",
+          "required": false,
+          "code": "swerveGearRatio",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        }
+      ]
+    },
+    {
+      "name": "Scoring",
+      "fields": [
+        {
+          "title": "Max Fuel Capacity (how many balls can they hold?)",
+          "description": "",
+          "type": "text",
+          "required": false,
+          "code": "maxFuelCapacity",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        },
+        {
+          "title": "Fuel Per Second (how many fuel can they shoot in 1 second)",
+          "description": "Put \"don't know\" if the team does not know.",
+          "type": "text",
+          "required": false,
+          "code": "fuelPerSecond",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        },
+        {
+          "title": "Where can they intake fuel from?",
+          "description": "",
+          "type": "checkbox-select",
+          "required": false,
+          "code": "fuelIntakeSource",
+          "formResetBehavior": "reset",
+          "defaultValue": [],
+          "choices": {
+            "ground": "Ground",
+            "outpost": "Outpost",
+            "depot": "Depot"
+          }
+        },
+        {
+          "title": "Can they climb?",
+          "description": "",
+          "type": "checkbox-select",
+          "required": false,
+          "code": "climbLevel",
+          "formResetBehavior": "reset",
+          "defaultValue": [],
+          "choices": {
+            "low": "Low L1/10pt",
+            "middle": "Middle L2/20pt",
+            "high": "High L3/30pt",
+            "na": "Not Applicable"
+          }
+        },
+        {
+          "title": "Can they fit under the trench?",
+          "description": "Yes if the robot fits under the trench, no if it plays over the bump.",
+          "type": "boolean",
+          "required": false,
+          "code": "trenchFit",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        }
+      ]
+    },
+    {
+      "name": "Autonomous",
+      "fields": [
+        {
+          "title": "What autos do they have?",
+          "description": "Best working autos, the auto they want to run, their auto paths.",
+          "type": "long-text",
+          "required": false,
+          "code": "autoDescription",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        },
+        {
+          "title": "What auto path planning tool do they use?",
+          "description": "",
+          "type": "select",
+          "required": false,
+          "code": "autoPathTool",
+          "formResetBehavior": "reset",
+          "defaultValue": "none",
+          "choices": {
+            "pathplanner": "PathPlanner",
+            "choreo": "Choreo",
+            "bline": "Bline",
+            "custom": "Custom",
+            "none": "None",
+            "other": "Other"
+          }
+        },
+        {
+          "title": "Auto path planning tool (other)",
+          "description": "",
+          "type": "text",
+          "required": false,
+          "code": "autoPathToolOther",
+          "formResetBehavior": "reset",
+          "defaultValue": "",
+          "visibleWhenCode": "autoPathTool",
+          "visibleWhenValue": "other"
+        }
+      ]
+    },
+    {
+      "name": "Notes",
+      "fields": [
+        {
+          "title": "Comments",
+          "description": "Comments: (these are only suggestions, asking with your own curiosity and keeping the conversation open could lead to more/other important info!) Robot archetype (kitbot, everybot, rev starter, cranberry alarm, etc.) plus modifications. Can they shoot fuel while moving? Can they intake and shoot at the same time? What changed since their last event (important for Worlds)? Describe their mechanisms (intake, indexer, hopper, shooter). Follow the criteria above, write full statements such as \"they can intake and shoot at the same time\", not yes or no.",
+          "type": "long-text",
+          "required": false,
+          "code": "comments",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        }
+      ]
+    },
+    {
+      "name": "Other",
+      "fields": [
+        {
+          "title": "Launcher Type",
+          "description": "Launcher type, for the match info Robot Type column (#1385).",
+          "type": "text",
+          "required": false,
+          "code": "launcherType",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        }
+      ]
+    }
+  ]
+}
