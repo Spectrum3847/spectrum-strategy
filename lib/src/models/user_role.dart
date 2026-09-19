@@ -109,6 +109,13 @@ extension UserRoleSetPermissions on Set<UserRole> {
         r == UserRole.developer,
   );
 
+  bool get canEditMatchInfo => any(
+    (r) =>
+        r == UserRole.strategy ||
+        r == UserRole.admin ||
+        r == UserRole.developer,
+  );
+
   String get displayText {
     final names = map((r) => r.displayName).toList()..sort();
     return names.join(', ');

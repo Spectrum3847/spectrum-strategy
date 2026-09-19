@@ -35,6 +35,8 @@ class TRexAssignmentsView extends StatefulWidget {
 }
 
 class _TRexAssignmentsViewState extends State<TRexAssignmentsView> {
+  static const double _compactBreakpoint = 600;
+
   final TextEditingController _newColumnController = TextEditingController();
 
   @override
@@ -114,70 +116,690 @@ class _TRexAssignmentsViewState extends State<TRexAssignmentsView> {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    assignments.isEmpty
-                        ? EmptyState(
-                            icon: Icons.groups_2_outlined,
-                            message: widget.canEdit
-                                ? 'No T-Rex traits yet. Add one below to '
-                                      'start assigning student scouters.'
-                                : 'No T-Rex traits have been added yet.',
-                          )
-                        : _ColumnsList(
-                            controller: widget.controller,
-                            columns: assignments.columns,
-                            canEdit: widget.canEdit,
-                          ),
-                    if (widget.canEdit)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _newColumnController,
-                                decoration: const InputDecoration(
-                                  isDense: true,
-                                  border: OutlineInputBorder(),
-                                  hintText: 'New trait, e.g. Defense',
-                                ),
-                                onSubmitted: (_) => _addColumn(),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isCompact = constraints.maxWidth < _compactBreakpoint;
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: isCompact
+                          ? [
+                              _CompactTraitSections(
+                                controller: widget.controller,
+                                teamListController: teamListController,
+                                canEdit: widget.canEdit,
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            FilledButton.icon(
-                              onPressed: _addColumn,
-                              icon: const Icon(Icons.add_rounded),
-                              label: const Text('Add trait'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    if (teamListController != null) ...[
-                      const Divider(height: 1),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                        child: Text(
-                          'Team assignments',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ),
-                      _TeamListSection(
-                        controller: teamListController,
-                        canEdit: widget.canEdit,
-                      ),
-                    ],
-                  ],
-                ),
+                            ]
+                          : [
+                              assignments.isEmpty
+                                  ? EmptyState(
+                                      icon: Icons.groups_2_outlined,
+                                      message: widget.canEdit
+                                          ? 'No T-Rex traits yet. Add one '
+                                                'below to start assigning '
+                                                'student scouters.'
+                                          : 'No T-Rex traits have been '
+                                                'added yet.',
+                                    )
+                                  : _ColumnsList(
+                                      controller: widget.controller,
+                                      columns: assignments.columns,
+                                      canEdit: widget.canEdit,
+                                    ),
+                              if (widget.canEdit)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    0,
+                                    16,
+                                    16,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextField(
+                                          controller: _newColumnController,
+                                          decoration: const InputDecoration(
+                                            isDense: true,
+                                            border: OutlineInputBorder(),
+                                            hintText: 'New trait, e.g. Defense',
+                                          ),
+                                          onSubmitted: (_) => _addColumn(),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      FilledButton.icon(
+                                        onPressed: _addColumn,
+                                        icon: const Icon(Icons.add_rounded),
+                                        label: const Text('Add trait'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              if (teamListController != null) ...[
+                                const Divider(height: 1),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    16,
+                                    16,
+                                    4,
+                                  ),
+                                  child: Text(
+                                    'Team assignments',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
+                                  ),
+                                ),
+                                _TeamListSection(
+                                  controller: teamListController,
+                                  canEdit: widget.canEdit,
+                                ),
+                              ],
+                            ],
+                    ),
+                  );
+                },
               ),
             ),
           ],
         );
       },
+    );
+  }
+}
+
+class _TraitSection {
+  const _TraitSection({
+    this.assignmentColumn,
+    this.assignmentIndex = -1,
+    this.teamColumn,
+    this.teamIndex = -1,
+  });
+
+  final TRexTraitColumn? assignmentColumn;
+  final int assignmentIndex;
+  final TRexTeamListColumn? teamColumn;
+  final int teamIndex;
+
+  String get name => assignmentColumn?.name ?? teamColumn?.name ?? '';
+}
+
+List<_TraitSection> _mergeTraitSections(
+  List<TRexTraitColumn> assignmentColumns,
+  List<TRexTeamListColumn> teamColumns,
+) {
+  final usedTeamIndexes = <int>{};
+  final sections = <_TraitSection>[];
+  for (var i = 0; i < assignmentColumns.length; i++) {
+    final column = assignmentColumns[i];
+    final normalized = column.name.trim().toLowerCase();
+    var matchIndex = -1;
+    for (var j = 0; j < teamColumns.length; j++) {
+      if (usedTeamIndexes.contains(j)) continue;
+      if (teamColumns[j].name.trim().toLowerCase() == normalized) {
+        matchIndex = j;
+        break;
+      }
+    }
+    if (matchIndex == -1) {
+      sections.add(_TraitSection(assignmentColumn: column, assignmentIndex: i));
+    } else {
+      usedTeamIndexes.add(matchIndex);
+      sections.add(
+        _TraitSection(
+          assignmentColumn: column,
+          assignmentIndex: i,
+          teamColumn: teamColumns[matchIndex],
+          teamIndex: matchIndex,
+        ),
+      );
+    }
+  }
+  for (var j = 0; j < teamColumns.length; j++) {
+    if (usedTeamIndexes.contains(j)) continue;
+    sections.add(_TraitSection(teamColumn: teamColumns[j], teamIndex: j));
+  }
+  return sections;
+}
+
+class _CompactTraitSections extends StatefulWidget {
+  const _CompactTraitSections({
+    required this.controller,
+    required this.teamListController,
+    required this.canEdit,
+  });
+
+  final TRexAssignmentsController controller;
+  final TRexTeamListController? teamListController;
+  final bool canEdit;
+
+  @override
+  State<_CompactTraitSections> createState() => _CompactTraitSectionsState();
+}
+
+class _CompactTraitSectionsState extends State<_CompactTraitSections> {
+  final TextEditingController _newTraitController = TextEditingController();
+  final TextEditingController _newTeamColumnController =
+      TextEditingController();
+
+  @override
+  void dispose() {
+    _newTraitController.dispose();
+    _newTeamColumnController.dispose();
+    super.dispose();
+  }
+
+  void _addTrait() {
+    final name = _newTraitController.text;
+    if (name.trim().isEmpty) return;
+    widget.controller.addColumn(name);
+    _newTraitController.clear();
+  }
+
+  void _addTeamColumn() {
+    final teamListController = widget.teamListController;
+    if (teamListController == null) return;
+    final name = _newTeamColumnController.text;
+    if (name.trim().isEmpty) return;
+    teamListController.addColumn(name);
+    _newTeamColumnController.clear();
+  }
+
+  void _moveSection(List<_TraitSection> sections, int index, int delta) {
+    final section = sections[index];
+    if (section.assignmentColumn == null) return;
+    widget.controller.reorderColumns(
+      section.assignmentIndex,
+      delta < 0 ? section.assignmentIndex - 1 : section.assignmentIndex + 2,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final assignments = widget.controller.assignments;
+    final teamListController = widget.teamListController;
+    final teamList = teamListController?.teamList;
+    final sections = _mergeTraitSections(
+      assignments.columns,
+      teamList?.columns ?? const <TRexTeamListColumn>[],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (sections.isEmpty)
+          EmptyState(
+            icon: Icons.groups_2_outlined,
+            message: widget.canEdit
+                ? 'No T-Rex traits yet. Add one below to start assigning '
+                      'student scouters.'
+                : 'No T-Rex traits have been added yet.',
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                for (var i = 0; i < sections.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _CompactTraitCard(
+                      controller: widget.controller,
+                      teamListController: teamListController,
+                      section: sections[i],
+                      canEdit: widget.canEdit,
+                      canMoveUp: sections[i].assignmentColumn != null && i > 0,
+                      canMoveDown:
+                          sections[i].assignmentColumn != null &&
+                          i < sections.length - 1 &&
+                          sections[i + 1].assignmentColumn != null,
+                      onMove: (delta) => _moveSection(sections, i, delta),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        if (widget.canEdit)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _newTraitController,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                      hintText: 'New trait, e.g. Defense',
+                    ),
+                    onSubmitted: (_) => _addTrait(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: FilledButton.icon(
+                    onPressed: _addTrait,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text(
+                      'Add trait',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (widget.canEdit && teamListController != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _newTeamColumnController,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                      hintText: 'New team column, e.g. Defense',
+                    ),
+                    onSubmitted: (_) => _addTeamColumn(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: FilledButton.icon(
+                    onPressed: _addTeamColumn,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text(
+                      'Add column',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (teamList != null && !teamList.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Text(
+              'Total teams: ${teamList.totalTeams}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CompactTraitCard extends StatefulWidget {
+  const _CompactTraitCard({
+    required this.controller,
+    required this.teamListController,
+    required this.section,
+    required this.canEdit,
+    required this.canMoveUp,
+    required this.canMoveDown,
+    required this.onMove,
+  });
+
+  final TRexAssignmentsController controller;
+  final TRexTeamListController? teamListController;
+  final _TraitSection section;
+  final bool canEdit;
+  final bool canMoveUp;
+  final bool canMoveDown;
+
+  final void Function(int delta) onMove;
+
+  @override
+  State<_CompactTraitCard> createState() => _CompactTraitCardState();
+}
+
+class _CompactTraitCardState extends State<_CompactTraitCard> {
+  late final TextEditingController _headerText = TextEditingController(
+    text: widget.section.name,
+  );
+  final TextEditingController _newNameText = TextEditingController();
+  final TextEditingController _newTeamText = TextEditingController();
+  Timer? _headerDebounce;
+
+  static const _debounceFor = Duration(milliseconds: 600);
+
+  @override
+  void didUpdateWidget(_CompactTraitCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.section.name != widget.section.name &&
+        _headerText.text != widget.section.name &&
+        _headerDebounce == null) {
+      _headerText.text = widget.section.name;
+    }
+  }
+
+  @override
+  void dispose() {
+    _headerDebounce?.cancel();
+    _saveHeader();
+    _headerText.dispose();
+    _newNameText.dispose();
+    _newTeamText.dispose();
+    super.dispose();
+  }
+
+  void _onHeaderChanged(String _) {
+    _headerDebounce?.cancel();
+    _headerDebounce = Timer(_debounceFor, _saveHeader);
+  }
+
+  void _saveHeader() {
+    _headerDebounce = null;
+    final value = _headerText.text;
+    if (value == widget.section.name) return;
+    if (value.trim().isEmpty) {
+      _headerText.text = widget.section.name;
+      return;
+    }
+
+    final assignmentColumn = widget.section.assignmentColumn;
+    if (assignmentColumn != null) {
+      widget.controller.renameColumn(assignmentColumn.key, value);
+    }
+    final teamColumn = widget.section.teamColumn;
+    final teamListController = widget.teamListController;
+    if (teamColumn != null && teamListController != null) {
+      teamListController.renameColumn(teamColumn.key, value);
+    }
+  }
+
+  void _addName() {
+    final assignmentColumn = widget.section.assignmentColumn;
+    if (assignmentColumn == null) return;
+    final name = _newNameText.text;
+    if (name.trim().isEmpty) return;
+    widget.controller.addName(assignmentColumn.key, name);
+    _newNameText.clear();
+  }
+
+  Future<void> _pasteNames() async {
+    final assignmentColumn = widget.section.assignmentColumn;
+    if (assignmentColumn == null) return;
+    final names = await showPasteListDialog(
+      context,
+      title: 'Paste scouters',
+      hint: 'Ada Lovelace\nGrace Hopper\n...',
+    );
+    if (names == null || names.isEmpty) return;
+    await widget.controller.addNames(assignmentColumn.key, names);
+  }
+
+  void _addTeam() {
+    final teamColumn = widget.section.teamColumn;
+    final teamListController = widget.teamListController;
+    if (teamColumn == null || teamListController == null) return;
+    final team = _newTeamText.text;
+    if (team.trim().isEmpty) return;
+    teamListController.addTeam(teamColumn.key, team);
+    _newTeamText.clear();
+  }
+
+  Future<void> _pasteTeams() async {
+    final teamColumn = widget.section.teamColumn;
+    final teamListController = widget.teamListController;
+    if (teamColumn == null || teamListController == null) return;
+    final teams = await showPasteListDialog(
+      context,
+      title: 'Paste teams',
+      hint: '3847\n254\n1678\n...',
+    );
+    if (teams == null || teams.isEmpty) return;
+    await teamListController.addTeams(teamColumn.key, teams);
+  }
+
+  Future<void> _confirmDeleteTrait() async {
+    final assignmentColumn = widget.section.assignmentColumn;
+    if (assignmentColumn == null) return;
+    final confirmed = await showGlassConfirmDialog<bool>(
+      context: context,
+      title: 'Remove trait?',
+      content: Text(
+        'This removes "${assignmentColumn.name}" and everyone assigned '
+        'to it from the T-Rex table.',
+      ),
+      actionsBuilder: (dialogContext) => [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('Remove'),
+        ),
+      ],
+    );
+    if (confirmed == true) {
+      widget.controller.removeColumn(assignmentColumn.key);
+    }
+  }
+
+  Future<void> _confirmDeleteTeamColumn() async {
+    final teamColumn = widget.section.teamColumn;
+    final teamListController = widget.teamListController;
+    if (teamColumn == null || teamListController == null) return;
+    final confirmed = await showGlassConfirmDialog<bool>(
+      context: context,
+      title: 'Remove column?',
+      content: Text(
+        'This removes "${teamColumn.name}" and every team listed under it.',
+      ),
+      actionsBuilder: (dialogContext) => [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('Remove'),
+        ),
+      ],
+    );
+    if (confirmed == true) {
+      teamListController.removeColumn(teamColumn.key);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final assignmentColumn = widget.section.assignmentColumn;
+    final teamColumn = widget.section.teamColumn;
+    final teamListController = widget.teamListController;
+    final names = assignmentColumn?.names ?? const <String>[];
+    final teams = teamColumn?.teams ?? const <String>[];
+    final mutedStyle = Theme.of(context).textTheme.bodySmall
+        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+    final labelStyle = Theme.of(context).textTheme.labelMedium
+        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+    return Container(
+      decoration: BoxDecoration(
+        color: StrategyPalette.surfaceOf(context),
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        borderRadius: const BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: widget.canEdit
+                    ? TextField(
+                        controller: _headerText,
+                        onChanged: _onHeaderChanged,
+                        onSubmitted: (_) => _saveHeader(),
+                        onTapOutside: (_) => _saveHeader(),
+                        style: Theme.of(context).textTheme.titleMedium,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          border: InputBorder.none,
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          widget.section.name,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+              ),
+              if (widget.canEdit)
+                IconButton(
+                  icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+                  tooltip: 'Move trait up',
+                  onPressed: widget.canMoveUp ? () => widget.onMove(-1) : null,
+                  visualDensity: VisualDensity.compact,
+                ),
+              if (widget.canEdit)
+                IconButton(
+                  icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                  tooltip: 'Move trait down',
+                  onPressed: widget.canMoveDown ? () => widget.onMove(1) : null,
+                  visualDensity: VisualDensity.compact,
+                ),
+              if (widget.canEdit && assignmentColumn != null)
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  tooltip: 'Remove trait',
+                  onPressed: _confirmDeleteTrait,
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+          const Divider(height: 12),
+          Text('Scouters', style: labelStyle),
+          if (assignmentColumn == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'No trait column for this team list yet',
+                style: mutedStyle,
+              ),
+            )
+          else if (names.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text('No one assigned yet', style: mutedStyle),
+            )
+          else
+            for (var i = 0; i < names.length; i++)
+              _NameRow(
+                controller: widget.controller,
+                columnKey: assignmentColumn.key,
+                index: i,
+                name: names[i],
+                canEdit: widget.canEdit,
+                canMoveUp: i > 0,
+                canMoveDown: i < names.length - 1,
+              ),
+          if (widget.canEdit && assignmentColumn != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _newNameText,
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                        hintText: 'Add scouter',
+                      ),
+                      onSubmitted: (_) => _addName(),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    key: ValueKey('trex-paste-names-${assignmentColumn.key}'),
+                    tooltip: 'Paste a list of scouters',
+                    onPressed: _pasteNames,
+                    icon: const Icon(Icons.content_paste_rounded),
+                  ),
+                ],
+              ),
+            ),
+          if (teamListController != null) ...[
+            const Divider(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Teams', style: labelStyle),
+                if (widget.canEdit && teamColumn != null)
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    tooltip: 'Remove team column',
+                    onPressed: _confirmDeleteTeamColumn,
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+            if (teamColumn == null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'No team column for this trait yet',
+                  style: mutedStyle,
+                ),
+              )
+            else if (teams.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text('No teams yet', style: mutedStyle),
+              )
+            else
+              for (var i = 0; i < teams.length; i++)
+                _TeamRow(
+                  controller: teamListController,
+                  columnKey: teamColumn.key,
+                  index: i,
+                  team: teams[i],
+                  canEdit: widget.canEdit,
+                  canMoveUp: i > 0,
+                  canMoveDown: i < teams.length - 1,
+                ),
+            if (widget.canEdit && teamColumn != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _newTeamText,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                          hintText: 'Add team',
+                        ),
+                        onSubmitted: (_) => _addTeam(),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      key: ValueKey('trex-paste-teams-${teamColumn.key}'),
+                      tooltip: 'Paste a list of teams',
+                      onPressed: _pasteTeams,
+                      icon: const Icon(Icons.content_paste_rounded),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
     );
   }
 }

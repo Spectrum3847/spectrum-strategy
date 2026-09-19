@@ -12,7 +12,7 @@ Future<bool> spectrumGlassSupported() async {
   return liquidGlassSupported();
 }
 
-const String glassChromeSurfaces = 'the app bar, menus, sheets and dialogs';
+const String glassChromeSurfaces = 'menus, sheets and dialogs';
 
 class GlassChrome extends InheritedWidget {
   const GlassChrome({super.key, required this.enabled, required super.child});

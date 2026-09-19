@@ -150,7 +150,7 @@ class MatchInfoView extends StatelessWidget {
                   : null,
               postMatchReportController: postMatch,
               canEditPostMatch:
-                  userRoleController?.roles.canEditScoutConfig ?? false,
+                  userRoleController?.roles.canEditMatchInfo ?? false,
             ),
           );
         }
@@ -281,12 +281,12 @@ class _MatchInfoCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       preMatch,
+                      const SizedBox(height: 16),
+                      opponents,
                       if (postMatch != null) ...[
                         const SizedBox(height: 16),
                         postMatch,
                       ],
-                      const SizedBox(height: 16),
-                      opponents,
                     ],
                   );
                 }
@@ -295,12 +295,12 @@ class _MatchInfoCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(child: preMatch),
+                    const SizedBox(width: 16),
+                    Expanded(child: opponents),
                     if (postMatch != null) ...[
                       const SizedBox(width: 16),
                       Expanded(child: postMatch),
                     ],
-                    const SizedBox(width: 16),
-                    Expanded(child: opponents),
                   ],
                 );
               },
@@ -507,7 +507,7 @@ class MatchInfoRowsTable extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Text(
           computed,
-          overflow: TextOverflow.ellipsis,
+          softWrap: true,
           textAlign: column.numeric ? TextAlign.right : TextAlign.left,
         ),
       );
@@ -579,10 +579,14 @@ class _EditableStatCellState extends State<_EditableStatCell> {
           controller: _controller,
           textAlign: widget.textAlign,
           style: Theme.of(context).textTheme.bodyMedium,
+          minLines: 1,
+          maxLines: null,
+          keyboardType: TextInputType.multiline,
           decoration: InputDecoration(
             isDense: true,
             border: InputBorder.none,
             hintText: widget.hint,
+            hintMaxLines: null,
             contentPadding: const EdgeInsets.symmetric(vertical: 4),
           ),
           onChanged: widget.onChanged,
