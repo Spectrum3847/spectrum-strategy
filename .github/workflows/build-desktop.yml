@@ -75,8 +75,10 @@ jobs:
         timeout-minutes: 5
         run: |
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y clang cmake ninja-build pkg-config \
-            libgtk-3-dev libx11-dev libxi-dev liblzma-dev build-essential
+            libgtk-3-dev libx11-dev libxi-dev liblzma-dev build-essential \
+            libayatana-appindicator3-dev
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -179,6 +181,12 @@ jobs:
           appdir="AppDir"
           mkdir -p "$appdir/usr/bin" "$appdir/usr/lib"
           cp -r "$bundle"/* "$appdir/usr/bin/"
+
+          plugin="$(find "$appdir/usr/bin/lib" -name 'libtray_manager_plugin.so' -print -quit)"
+          if [ -n "$plugin" ]; then
+            ldd "$plugin" | awk '/ayatana|indicator|dbusmenu/ {print $3}' \
+              | xargs -r -I{} cp -L {} "$appdir/usr/lib/"
+          fi
 
           bin="$(find "$appdir/usr/bin" -maxdepth 1 -type f -executable ! -name '*.so*' | head -1)"
           binname="$(basename "$bin")"

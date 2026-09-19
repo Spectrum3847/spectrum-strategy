@@ -1,14 +1,12 @@
 name: Release
 
-run-name: "Release ${{ inputs.tag || github.ref_name }}"
+run-name: "Release ${{ inputs.tag }}"
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to (re)build and publish, e.g. v1.0.0"
+        description: "Tag to build and publish, e.g. v1.0.0"
         required: true
         type: string
 
@@ -35,7 +33,7 @@ jobs:
           DISPATCH_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          TAG="${DISPATCH_TAG:-${GITHUB_REF_NAME}}"
+          TAG="$DISPATCH_TAG"
           VERSION="${TAG#v}"
           PRERELEASE=false
           case "$TAG" in *-rc.*) PRERELEASE=true ;; esac
@@ -275,7 +273,17 @@ jobs:
             exit 0
           fi
 
+          python3 - "$SITE" <<'CONFIG'
+          import json, sys
+          site = sys.argv[1]
+          hosting = json.load(open("firebase.json"))["hosting"]
+          entry = dict(next(h for h in hosting if h["site"] == "frcspectrumstrategy"))
+          entry["site"] = site
+          json.dump({"hosting": entry}, open("firebase.rc-web.json", "w"))
+          CONFIG
+
           deploy_output=$(npx -y firebase-tools@latest deploy \
+            --config firebase.rc-web.json \
             --only "hosting:$SITE" \
             --project frcspectrumstrategy --non-interactive 2>&1) && deploy_exit=0 || deploy_exit=$?
           if [ "$deploy_exit" -ne 0 ]; then
