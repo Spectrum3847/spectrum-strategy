@@ -64,8 +64,12 @@ class _ScoutingTabState extends State<ScoutingTab> {
     super.initState();
     widget.configController.addListener(_onConfigChanged);
     _initValues(_config);
-    _configFingerprint = jsonEncode(_config.toJson());
+    _configFingerprint = _formFingerprint(_config);
   }
+
+  static String _formFingerprint(ScoutConfig config) => jsonEncode(
+    config.sections.map((s) => s.toJson()).toList(growable: false),
+  );
 
   @override
   void dispose() {
@@ -78,7 +82,7 @@ class _ScoutingTabState extends State<ScoutingTab> {
   }
 
   void _onConfigChanged() {
-    final fingerprint = jsonEncode(_config.toJson());
+    final fingerprint = _formFingerprint(_config);
     if (fingerprint == _configFingerprint) return;
     _configFingerprint = fingerprint;
     setState(() {

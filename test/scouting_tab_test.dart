@@ -107,6 +107,23 @@ void main() {
     expect(find.text('Report drawing'), findsNothing);
   });
 
+  testWidgets('flipping the report drawing switch keeps typed values', (
+    tester,
+  ) async {
+    final config = ScoutConfigController(service: FakeScoutConfigService());
+    await _pumpTab(tester, configController: config);
+    final matchField = find.byKey(
+      const ValueKey<String>('scout-field-matchNumber'),
+    );
+    await tester.enterText(matchField, '17');
+    await tester.pumpAndSettle();
+
+    await config.updateConfig(config.config.copyWith(reportDrawing: false));
+    await tester.pumpAndSettle();
+
+    expect(find.text('17'), findsOneWidget);
+  });
+
   testWidgets('deleting an entry asks for confirmation first', (tester) async {
     final scouting = await _pumpTabAndSaveEntry(tester);
     expect(scouting.entries, hasLength(1));
