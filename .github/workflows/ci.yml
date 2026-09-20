@@ -38,3 +38,6 @@ jobs:
 
       - name: Run tests
         run: flutter test
+
+      - name: Check REUSE compliance
+        uses: fsfe/reuse-action@9a55738c6490d015afe69ad187520395d2b7a1fa # v6
