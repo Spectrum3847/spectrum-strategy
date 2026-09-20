@@ -98,10 +98,10 @@ class DesktopScoutingSyncService implements ScoutingSyncService {
   }
 
   @override
-  Future<void> push(ScoutEntry entry) async {
+  Future<ScoutingSyncStatus?> push(ScoutEntry entry) async {
     final user = _authService.currentUser;
     if (user == null) {
-      return;
+      return null;
     }
 
     final stamped = entry.copyWith(
@@ -131,22 +131,22 @@ class DesktopScoutingSyncService implements ScoutingSyncService {
       }
       await _queue.clear('scoutEntries', stamped.id);
       await _syncPendingCount();
-      _emitSynced();
+      return _emitSynced();
     } catch (error) {
       await _queue.mark('scoutEntries', stamped.id);
       await _syncPendingCount();
-      _emitFailure(error, isWrite: true);
+      return _emitFailure(error, isWrite: true);
     } finally {
       _inFlightWrites.endWrite(stamped.id, token);
     }
   }
 
   @override
-  Future<void> delete(ScoutEntry entry) => _deleteById(entry.id);
+  Future<ScoutingSyncStatus?> delete(ScoutEntry entry) => _deleteById(entry.id);
 
-  Future<void> _deleteById(String id) async {
+  Future<ScoutingSyncStatus?> _deleteById(String id) async {
     if (_authService.currentUser == null) {
-      return;
+      return null;
     }
 
     final token = _inFlightWrites.beginDelete(id);
@@ -162,11 +162,11 @@ class DesktopScoutingSyncService implements ScoutingSyncService {
 
       await _queue.clear('scoutEntries', id);
       await _syncPendingCount();
-      _emitSynced();
+      return _emitSynced();
     } catch (error) {
       await _queue.mark(_deletedCollection, id);
       await _syncPendingCount();
-      _emitFailure(error, isWrite: true);
+      return _emitFailure(error, isWrite: true);
     } finally {
       _inFlightWrites.endWrite(id, token);
     }
@@ -309,50 +309,50 @@ class DesktopScoutingSyncService implements ScoutingSyncService {
     }
   }
 
-  void _emitSynced() {
+  ScoutingSyncStatus _emitSynced() {
     _pollScheduler.onSuccess();
-    _emit(
-      ScoutingSyncStatus(
-        state: ScoutingSyncState.synced,
-        lastSyncedAt: _clock(),
-      ),
+    final result = ScoutingSyncStatus(
+      state: ScoutingSyncState.synced,
+      lastSyncedAt: _clock(),
     );
+    _emit(result);
+    return result;
   }
 
-  void _emitFailure(Object error, {bool isWrite = false}) {
+  ScoutingSyncStatus _emitFailure(Object error, {bool isWrite = false}) {
     _pollScheduler.onFailure();
     if (isWrite &&
         error is fc.FirestoreApiException &&
-        (error.statusCode == 403 || error.status == 'PERMISSION_DENIED')) {
-      _emit(
-        ScoutingSyncStatus(
-          state: ScoutingSyncState.rejected,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.message,
-        ),
+        (error.statusCode == 403 ||
+            error.statusCode == 401 ||
+            error.status == 'PERMISSION_DENIED')) {
+      final result = ScoutingSyncStatus(
+        state: ScoutingSyncState.rejected,
+        lastSyncedAt: _status.lastSyncedAt,
+        error: error.message,
       );
-      return;
+      _emit(result);
+      return result;
     }
 
     if (!isWrite &&
         error is fc.FirestoreApiException &&
         (error.statusCode == 403 || error.statusCode == 401)) {
-      _emit(
-        ScoutingSyncStatus(
-          state: ScoutingSyncState.noAccess,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.message,
-        ),
-      );
-      return;
-    }
-    _emit(
-      ScoutingSyncStatus(
-        state: ScoutingSyncState.offline,
+      final result = ScoutingSyncStatus(
+        state: ScoutingSyncState.noAccess,
         lastSyncedAt: _status.lastSyncedAt,
-        error: error.toString(),
-      ),
+        error: error.message,
+      );
+      _emit(result);
+      return result;
+    }
+    final result = ScoutingSyncStatus(
+      state: ScoutingSyncState.offline,
+      lastSyncedAt: _status.lastSyncedAt,
+      error: error.toString(),
     );
+    _emit(result);
+    return result;
   }
 
   void _emit(ScoutingSyncStatus next) {

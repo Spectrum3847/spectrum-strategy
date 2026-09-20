@@ -219,6 +219,30 @@ void main() {
     expect(denied.status.state, ScoutingSyncState.rejected);
   });
 
+  test('a 401 on a write reads as rejected too, not offline', () async {
+    final entry = ScoutEntry(
+      id: 'e6',
+      matchId: 'Q6',
+      teamNumber: 3847,
+      updatedAt: DateTime.utc(2026, 7, 9),
+    );
+    final denied = DesktopScoutingSyncService(
+      authService: _signedInAuth(),
+      firestore: _firestore(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {'code': 401, 'message': 'unauthenticated'},
+            }),
+            401,
+          ),
+        ),
+      ),
+    );
+    await denied.delete(entry);
+    expect(denied.status.state, ScoutingSyncState.rejected);
+  });
+
   test('overlapping syncNow calls apply in call order, not arrival', () async {
     final entry = ScoutEntry(
       id: 'e9',

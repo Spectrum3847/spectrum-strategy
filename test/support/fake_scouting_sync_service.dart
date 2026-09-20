@@ -43,47 +43,51 @@ class FakeScoutingSyncService implements ScoutingSyncService {
   }
 
   @override
-  Future<void> push(ScoutEntry entry) async {
+  Future<ScoutingSyncStatus?> push(ScoutEntry entry) async {
     if (simulateRejection) {
-      _emitRejected('permission-denied: push rejected');
-      return;
+      return _emitRejected('permission-denied: push rejected');
     }
     if (simulateOutage) {
-      _emitOffline('push failed');
-      return;
+      return _emitOffline('push failed');
     }
     pushed.add(entry);
-    _emitSynced();
+    return _emitSynced();
   }
 
   @override
-  Future<void> delete(ScoutEntry entry) async {
+  Future<ScoutingSyncStatus?> delete(ScoutEntry entry) async {
     if (simulateRejection) {
-      _emitRejected('permission-denied: delete rejected');
-      return;
+      return _emitRejected('permission-denied: delete rejected');
     }
     if (simulateOutage) {
-      _emitOffline('delete failed');
-      return;
+      return _emitOffline('delete failed');
     }
     deleted.add(entry);
-    _emitSynced();
+    return _emitSynced();
   }
 
-  void _emitOffline(String error) {
-    emitStatus(
-      ScoutingSyncStatus(state: ScoutingSyncState.offline, error: error),
+  ScoutingSyncStatus _emitOffline(String error) {
+    final next = ScoutingSyncStatus(
+      state: ScoutingSyncState.offline,
+      error: error,
     );
+    emitStatus(next);
+    return next;
   }
 
-  void _emitRejected(String error) {
-    emitStatus(
-      ScoutingSyncStatus(state: ScoutingSyncState.rejected, error: error),
+  ScoutingSyncStatus _emitRejected(String error) {
+    final next = ScoutingSyncStatus(
+      state: ScoutingSyncState.rejected,
+      error: error,
     );
+    emitStatus(next);
+    return next;
   }
 
-  void _emitSynced() {
-    emitStatus(const ScoutingSyncStatus(state: ScoutingSyncState.synced));
+  ScoutingSyncStatus _emitSynced() {
+    const next = ScoutingSyncStatus(state: ScoutingSyncState.synced);
+    emitStatus(next);
+    return next;
   }
 
   @override

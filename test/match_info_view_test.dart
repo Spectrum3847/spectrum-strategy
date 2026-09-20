@@ -321,4 +321,90 @@ void main() {
 
     expect(find.byIcon(Icons.save_outlined), findsNothing);
   });
+
+  testWidgets('a scouter cannot edit the post-match table (#2003)', (
+    tester,
+  ) async {
+    final eventController = await _loadedEventController();
+    await eventController.setMyTeamNumber(3847);
+    final scouting = await _seed(const <ScoutEntry>[]);
+    final postMatch = PostMatchReportController(
+      storage: FakePostMatchReportStorage(),
+    );
+    await postMatch.bootstrap();
+    final roles = await readyRoles(UserRole.scouter);
+
+    await tester.pumpWidget(
+      _host(
+        eventController: eventController,
+        scoutingController: scouting,
+        configController: await config(),
+        postMatchReportController: postMatch,
+        userRoleController: roles,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Post-match'), findsOneWidget);
+
+    expect(find.byIcon(Icons.save_outlined), findsNothing);
+  });
+
+  testWidgets(
+    'pre-match and opponents sit side by side with post-match at the far '
+    'right (#2003)',
+    (tester) async {
+      final eventController = await _loadedEventController();
+      await eventController.setMyTeamNumber(3847);
+      final scouting = await _seed(const <ScoutEntry>[]);
+      final postMatch = PostMatchReportController(
+        storage: FakePostMatchReportStorage(),
+      );
+      await postMatch.bootstrap();
+      final roles = await readyRoles(UserRole.strategy);
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        _host(
+          eventController: eventController,
+          scoutingController: scouting,
+          configController: await config(),
+          postMatchReportController: postMatch,
+          userRoleController: roles,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final preMatchX = tester.getTopLeft(find.text('Pre-match')).dx;
+      final opponentsX = tester.getTopLeft(find.text('Opponents')).dx;
+      final postMatchX = tester.getTopLeft(find.text('Post-match')).dx;
+
+      expect(preMatchX, lessThan(opponentsX));
+      expect(opponentsX, lessThan(postMatchX));
+    },
+  );
+
+  testWidgets('a long computed cell value wraps instead of clipping (#2003)', (
+    tester,
+  ) async {
+    final eventController = await _loadedEventController();
+    await eventController.setMyTeamNumber(3847);
+    final scouting = await _seed(const <ScoutEntry>[]);
+
+    await tester.pumpWidget(
+      _host(
+        eventController: eventController,
+        scoutingController: scouting,
+        configController: await config(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final nameCell = tester.widget<Text>(find.text('--').first);
+    expect(nameCell.overflow, isNot(TextOverflow.ellipsis));
+    expect(nameCell.softWrap, isTrue);
+  });
 }

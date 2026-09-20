@@ -389,4 +389,239 @@ void main() {
 
     expect(find.byIcon(Icons.content_paste_rounded), findsNothing);
   });
+
+  group('compact width (phone)', () {
+    Future<TRexAssignmentsController> readyController(
+      FakeTRexAssignmentsSyncService sync,
+    ) async {
+      final controller = TRexAssignmentsController(syncService: sync);
+      await controller.bootstrap();
+      await controller.addColumn('Defense');
+      await controller.addName(
+        controller.assignments.columns.single.key,
+        'Alex',
+      );
+      return controller;
+    }
+
+    Future<TRexTeamListController> readyTeamListController(
+      FakeTRexTeamListSyncService sync,
+    ) async {
+      final controller = TRexTeamListController(syncService: sync);
+      await controller.bootstrap();
+      await controller.addColumn('Defense');
+      await controller.addTeam(controller.teamList.columns.single.key, '118');
+      return controller;
+    }
+
+    testWidgets(
+      'below the tablet breakpoint a trait section stacks its name and '
+      'teams together instead of two horizontal scrollers',
+      (tester) async {
+        final sync = FakeTRexAssignmentsSyncService();
+        final controller = await readyController(sync);
+        addTearDown(controller.dispose);
+        final teamSync = FakeTRexTeamListSyncService();
+        final teamListController = await readyTeamListController(teamSync);
+        addTearDown(teamListController.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: const MediaQueryData(size: Size(390, 844)),
+              child: Scaffold(
+                body: SizedBox(
+                  width: 390,
+                  height: 844,
+                  child: TRexAssignmentsView(
+                    controller: controller,
+                    teamListController: teamListController,
+                    canEdit: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is SingleChildScrollView &&
+                widget.scrollDirection == Axis.horizontal,
+          ),
+          findsNothing,
+        );
+        expect(find.text('Alex'), findsOneWidget);
+        expect(find.text('118'), findsOneWidget);
+        final defenseHeader = tester.getTopLeft(find.text('Defense'));
+        final aliceRow = tester.getTopLeft(find.text('Alex'));
+        final teamRow = tester.getTopLeft(find.text('118'));
+        expect(aliceRow.dy, greaterThan(defenseHeader.dy));
+        expect(teamRow.dy, greaterThan(aliceRow.dy));
+      },
+    );
+
+    testWidgets(
+      'a read-only scouter sees names and teams with no editing chrome',
+      (tester) async {
+        final sync = FakeTRexAssignmentsSyncService();
+        final controller = await readyController(sync);
+        addTearDown(controller.dispose);
+        final teamSync = FakeTRexTeamListSyncService();
+        final teamListController = await readyTeamListController(teamSync);
+        addTearDown(teamListController.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: const MediaQueryData(size: Size(390, 844)),
+              child: Scaffold(
+                body: SizedBox(
+                  width: 390,
+                  height: 844,
+                  child: TRexAssignmentsView(
+                    controller: controller,
+                    teamListController: teamListController,
+                    canEdit: false,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text('Defense'), findsOneWidget);
+        expect(find.text('Alex'), findsOneWidget);
+        expect(find.text('118'), findsOneWidget);
+        expect(find.byType(TextField), findsNothing);
+        expect(find.byIcon(Icons.close_rounded), findsNothing);
+        expect(find.byIcon(Icons.arrow_upward_rounded), findsNothing);
+        expect(find.byIcon(Icons.arrow_downward_rounded), findsNothing);
+      },
+    );
+
+    testWidgets('move-down on a compact trait reorders the assignments '
+        'columns', (tester) async {
+      final sync = FakeTRexAssignmentsSyncService();
+      final controller = TRexAssignmentsController(syncService: sync);
+      await controller.bootstrap();
+      await controller.addColumn('Defense');
+      await controller.addColumn('Auton');
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(390, 844)),
+            child: Scaffold(
+              body: SizedBox(
+                width: 390,
+                height: 844,
+                child: TRexAssignmentsView(
+                  controller: controller,
+                  canEdit: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.arrow_downward_rounded).first);
+      await tester.pump();
+
+      expect(controller.assignments.columns.map((c) => c.name), [
+        'Auton',
+        'Defense',
+      ]);
+    });
+
+    testWidgets('move-down on a compact trait leaves the team list order '
+        'alone', (tester) async {
+      final sync = FakeTRexAssignmentsSyncService();
+      final controller = TRexAssignmentsController(syncService: sync);
+      await controller.bootstrap();
+      await controller.addColumn('Defense');
+      await controller.addColumn('Auton');
+      addTearDown(controller.dispose);
+      final teamSync = FakeTRexTeamListSyncService();
+      final teamListController = TRexTeamListController(syncService: teamSync);
+      await teamListController.bootstrap();
+      await teamListController.addColumn('Fuel');
+      await teamListController.addColumn('Auton');
+      await teamListController.addColumn('Defense');
+      addTearDown(teamListController.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(390, 844)),
+            child: Scaffold(
+              body: SizedBox(
+                width: 390,
+                height: 844,
+                child: TRexAssignmentsView(
+                  controller: controller,
+                  teamListController: teamListController,
+                  canEdit: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.arrow_downward_rounded).first);
+      await tester.pump();
+
+      expect(controller.assignments.columns.map((c) => c.name), [
+        'Auton',
+        'Defense',
+      ]);
+      expect(teamListController.teamList.columns.map((c) => c.name), [
+        'Fuel',
+        'Auton',
+        'Defense',
+      ]);
+    });
+
+    testWidgets('above the breakpoint the two-table layout is unchanged', (
+      tester,
+    ) async {
+      final sync = FakeTRexAssignmentsSyncService();
+      final controller = await readyController(sync);
+      addTearDown(controller.dispose);
+      final teamSync = FakeTRexTeamListSyncService();
+      final teamListController = await readyTeamListController(teamSync);
+      addTearDown(teamListController.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TRexAssignmentsView(
+              controller: controller,
+              teamListController: teamListController,
+              canEdit: true,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Team assignments'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is SingleChildScrollView &&
+              widget.scrollDirection == Axis.horizontal,
+        ),
+        findsNWidgets(2),
+      );
+    });
+  });
 }
