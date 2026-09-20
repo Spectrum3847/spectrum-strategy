@@ -104,11 +104,11 @@ jobs:
       IOS_BUILD: ${{ needs.ios.outputs.build }}
     steps:
 
-      - name: Checkout the release tag
+      - name: Checkout the release tooling
         uses: actions/checkout@v7
         with:
           repository: Spectrum3847/SpectrumStrategy
-          ref: ${{ env.TAG }}
+          ref: master
           token: ${{ secrets.MIRROR_SOURCE_TOKEN }}
           persist-credentials: false
 
