@@ -894,6 +894,24 @@ class _SettingsTabState extends State<SettingsTab> {
                           ? 'Tab'
                           : _config.delimiter,
                     ),
+                    if (_canEdit)
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Report drawing'),
+                        subtitle: const Text(
+                          'Show the drawing card at the end of the match '
+                          'scouting form',
+                        ),
+                        value: _config.reportDrawing,
+                        onChanged: (value) => _ctrl.updateConfig(
+                          _config.copyWith(reportDrawing: value),
+                        ),
+                      )
+                    else
+                      _InfoRow(
+                        label: 'Report drawing',
+                        value: _config.reportDrawing ? 'On' : 'Off',
+                      ),
                   ],
                 ),
               ),

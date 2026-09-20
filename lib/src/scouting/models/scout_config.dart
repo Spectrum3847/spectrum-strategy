@@ -478,12 +478,15 @@ class ScoutConfig {
     this.delimiter = '\t',
     required this.sections,
     this.revision = 0,
+    this.reportDrawing = true,
   });
 
   final String title;
   final String pageTitle;
   final String delimiter;
   final List<ScoutConfigSection> sections;
+
+  final bool reportDrawing;
 
   final int revision;
 
@@ -534,6 +537,7 @@ class ScoutConfig {
     String? delimiter,
     List<ScoutConfigSection>? sections,
     int? revision,
+    bool? reportDrawing,
   }) {
     return ScoutConfig(
       title: title ?? this.title,
@@ -541,6 +545,7 @@ class ScoutConfig {
       delimiter: delimiter ?? this.delimiter,
       sections: sections ?? this.sections,
       revision: revision ?? this.revision,
+      reportDrawing: reportDrawing ?? this.reportDrawing,
     );
   }
 
@@ -551,6 +556,7 @@ class ScoutConfig {
       'delimiter': delimiter,
       'sections': sections.map((s) => s.toJson()).toList(growable: false),
       'revision': revision,
+      'report_drawing': reportDrawing,
     };
   }
 
@@ -570,6 +576,7 @@ class ScoutConfig {
           .map((s) => ScoutConfigSection.fromJson(s.cast<String, dynamic>()))
           .toList(growable: false),
       revision: (json['revision'] as num?)?.toInt() ?? 0,
+      reportDrawing: json['report_drawing'] as bool? ?? true,
     );
   }
 

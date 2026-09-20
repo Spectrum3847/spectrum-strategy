@@ -20,6 +20,7 @@ const _testEventKey = '2026test';
 Future<ScoutingController> _pumpTab(
   WidgetTester tester, {
   ScoutingSyncService? syncService,
+  ScoutConfigController? configController,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   tester.view.physicalSize = const Size(1600, 2400);
@@ -31,7 +32,9 @@ Future<ScoutingController> _pumpTab(
     storage: FakeScoutingStorage(),
     syncService: syncService,
   );
-  final config = ScoutConfigController(service: FakeScoutConfigService());
+  final config =
+      configController ??
+      ScoutConfigController(service: FakeScoutConfigService());
   final event = EventController(client: _FakeStatboticsClient());
 
   await Future.wait(<Future<void>>[
@@ -88,6 +91,20 @@ void main() {
     expect(scouting.entries, hasLength(1));
     expect(scouting.entries.single.teamNumber, 3847);
     expect(scouting.entries.single.tbaMatchKey, '${_testEventKey}_qf1m1');
+  });
+
+  testWidgets('the report drawing card follows the config switch', (
+    tester,
+  ) async {
+    final config = ScoutConfigController(service: FakeScoutConfigService());
+    await _pumpTab(tester, configController: config);
+    await tester.drag(find.byType(ListView), const Offset(0, -3200));
+    await tester.pumpAndSettle();
+    expect(find.text('Report drawing'), findsOneWidget);
+
+    await config.updateConfig(config.config.copyWith(reportDrawing: false));
+    await tester.pumpAndSettle();
+    expect(find.text('Report drawing'), findsNothing);
   });
 
   testWidgets('deleting an entry asks for confirmation first', (tester) async {

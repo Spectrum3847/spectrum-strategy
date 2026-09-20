@@ -3,6 +3,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:spectrumstrategy/src/scouting/models/scout_config.dart';
 
 void main() {
+  test(
+    'report_drawing defaults on and round-trips through toJson/fromJson',
+    () {
+      const config = ScoutConfig(title: 'Scout', sections: []);
+      expect(config.reportDrawing, isTrue);
+      expect(ScoutConfig.fromJson(<String, dynamic>{}).reportDrawing, isTrue);
+
+      final off = config.copyWith(reportDrawing: false);
+      expect(off.toJson()['report_drawing'], isFalse);
+      expect(ScoutConfig.fromJson(off.toJson()).reportDrawing, isFalse);
+    },
+  );
+
   test('ScoutFieldType.fromString recognizes long-text', () {
     expect(ScoutFieldType.fromString('long-text'), ScoutFieldType.longText);
     expect(ScoutFieldType.fromString('long_text'), ScoutFieldType.longText);

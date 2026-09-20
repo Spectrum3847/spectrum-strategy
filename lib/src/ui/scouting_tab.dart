@@ -707,11 +707,13 @@ class _ScoutingTabState extends State<ScoutingTab> {
                   schedule: ScoutSchedule.fromMatches(_eventCtrl.matches),
                 ),
               ),
-              const SizedBox(height: 16),
-              AnimatedBuilder(
-                animation: _drawingController,
-                builder: (context, _) => _buildDrawingSection(context),
-              ),
+              if (_config.reportDrawing) ...[
+                const SizedBox(height: 16),
+                AnimatedBuilder(
+                  animation: _drawingController,
+                  builder: (context, _) => _buildDrawingSection(context),
+                ),
+              ],
               const SizedBox(height: 16),
               Row(
                 children: [
