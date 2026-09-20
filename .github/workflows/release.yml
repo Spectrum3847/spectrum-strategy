@@ -48,8 +48,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MIRROR_SOURCE_TOKEN }}
           TAG: ${{ steps.resolve.outputs.tag }}
+
         run: |
           set -euo pipefail
+          if ! gh api "repos/$SOURCE_REPO/git/ref/tags/$TAG" >/dev/null; then
+            echo "::error::$TAG is not a tag on $SOURCE_REPO"
+            exit 1
+          fi
           sha="$(gh api "repos/$SOURCE_REPO/commits/$TAG" --jq .sha)"
           echo "sha=${sha:0:7}" >> "$GITHUB_OUTPUT"
 
