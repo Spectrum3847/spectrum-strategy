@@ -124,6 +124,8 @@ class _DatabaseTabState extends State<DatabaseTab> {
   bool _isRefreshing = false;
   bool _isExporting = false;
   EntryOrder _order = EntryOrder.spreadsheet;
+
+  bool _allEvents = false;
   final Map<String, double> _columnWidths = {};
   final ScoutExportService _exportService = ScoutExportService();
 
@@ -133,6 +135,7 @@ class _DatabaseTabState extends State<DatabaseTab> {
   String _memoTeamText = '';
   String _memoMatchText = '';
   String _memoEventKey = '';
+  bool _memoAllEvents = false;
   EntryOrder _memoOrder = EntryOrder.spreadsheet;
   bool _memoWantsFlags = false;
   List<StatboticsMatch>? _memoScheduleSource;
@@ -162,10 +165,12 @@ class _DatabaseTabState extends State<DatabaseTab> {
         teamText == _memoTeamText &&
         matchText == _memoMatchText &&
         eventKey == _memoEventKey &&
+        _allEvents == _memoAllEvents &&
         _order == _memoOrder;
-    final scoped = sameFilterInputs ? null : _scopedToEvent(all);
+    List<ScoutEntry>? scopedCache;
+    List<ScoutEntry> scoped() => scopedCache ??= _scopedToEvent(all);
     if (!sameFilterInputs) {
-      _memoFiltered = _filtered(scoped!);
+      _memoFiltered = _filtered(_allEvents ? all : scoped());
     }
 
     if (!wantsFlags) {
@@ -175,7 +180,7 @@ class _DatabaseTabState extends State<DatabaseTab> {
         !identical(scheduleSource, _memoScheduleSource) ||
         !_memoWantsFlags) {
       _memoFlags = EntryFlags.detect(
-        scoped ?? _scopedToEvent(all),
+        scoped(),
         scheduledMatchNumbers: <int>[
           for (final match in scheduleSource)
             if (match.compLevel == 'qm') match.matchNumber,
@@ -187,6 +192,7 @@ class _DatabaseTabState extends State<DatabaseTab> {
     _memoTeamText = teamText;
     _memoMatchText = matchText;
     _memoEventKey = eventKey;
+    _memoAllEvents = _allEvents;
     _memoOrder = _order;
     _memoScheduleSource = scheduleSource;
     _memoWantsFlags = wantsFlags;
@@ -657,6 +663,10 @@ class _DatabaseTabState extends State<DatabaseTab> {
                 _FilterBar(
                   order: _order,
                   onOrderChanged: _setOrder,
+                  allEvents: _allEvents,
+                  onAllEventsChanged: (bool value) =>
+                      setState(() => _allEvents = value),
+                  hasEvent: widget.eventController.hasEvent,
                   teamFilter: _teamFilter,
                   matchFilter: _matchFilter,
                   syncStatus: syncStatus,
@@ -680,6 +690,9 @@ class _FilterBar extends StatelessWidget {
   const _FilterBar({
     required this.order,
     required this.onOrderChanged,
+    required this.allEvents,
+    required this.onAllEventsChanged,
+    required this.hasEvent,
     required this.teamFilter,
     required this.matchFilter,
     required this.syncStatus,
@@ -692,6 +705,11 @@ class _FilterBar extends StatelessWidget {
 
   final EntryOrder order;
   final ValueChanged<EntryOrder> onOrderChanged;
+
+  final bool allEvents;
+  final ValueChanged<bool> onAllEventsChanged;
+
+  final bool hasEvent;
 
   final TextEditingController teamFilter;
   final TextEditingController matchFilter;
@@ -722,6 +740,7 @@ class _FilterBar extends StatelessWidget {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     _orderControl(context),
+                    if (hasEvent) _eventScopeControl(context),
                     if (onExport != null)
                       OutlinedButton.icon(
                         onPressed: isExporting ? null : onExport,
@@ -784,6 +803,37 @@ class _FilterBar extends StatelessWidget {
                 ),
               ),
               TextSpan(text: entryOrderLabel(order)),
+            ],
+          ),
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+      ),
+    );
+  }
+
+  Widget _eventScopeControl(BuildContext context) {
+    return GlassPopupMenuButton<bool>(
+      tooltip: 'Events shown',
+      initialValue: allEvents,
+      onSelected: onAllEventsChanged,
+      itemBuilder: (BuildContext context) => const <PopupMenuEntry<bool>>[
+        PopupMenuItem<bool>(value: false, child: Text('This event')),
+        PopupMenuItem<bool>(value: true, child: Text('All events')),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+
+        child: Text.rich(
+          TextSpan(
+            children: <InlineSpan>[
+              const WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Padding(
+                  padding: EdgeInsets.only(right: 4),
+                  child: Icon(Icons.event_note_rounded, size: 18),
+                ),
+              ),
+              TextSpan(text: allEvents ? 'All events' : 'This event'),
             ],
           ),
           style: Theme.of(context).textTheme.labelLarge,

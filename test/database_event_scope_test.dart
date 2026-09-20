@@ -105,6 +105,51 @@ void main() {
 
     expect(scouting.entries, hasLength(2));
   });
+
+  testWidgets('All events reaches a past event\'s entries', (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final event = EventController(client: _FakeStatboticsClient());
+    await event.setEventKey('2026txhou');
+
+    await pumpWith(
+      tester,
+      event: event,
+      entries: [
+        entry(team: 100, tbaMatchKey: '2026txhou_qm1'),
+        entry(team: 200, tbaMatchKey: '2026gapea_qm1'),
+      ],
+    );
+
+    expect(find.text('200'), findsNothing);
+
+    await tester.tap(find.textContaining('This event', findRichText: true));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(PopupMenuItem<bool>, 'All events'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('100'), findsOneWidget);
+    expect(find.text('200'), findsOneWidget);
+
+    await tester.tap(find.textContaining('All events', findRichText: true));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(PopupMenuItem<bool>, 'This event'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('200'), findsNothing);
+  });
+
+  testWidgets('no scope control when no event is selected', (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    await pumpWith(
+      tester,
+      event: EventController(client: _FakeStatboticsClient()),
+      entries: [entry(team: 100, tbaMatchKey: '2026txhou_qm1')],
+    );
+
+    expect(find.textContaining('This event', findRichText: true), findsNothing);
+    expect(find.text('100'), findsOneWidget);
+  });
 }
 
 class _FakeStatboticsClient extends StatboticsClient {

@@ -160,7 +160,7 @@ class ScoutingController extends ChangeNotifier {
     }
     final sync = _syncService;
     if (sync != null) {
-      unawaited(sync.push(snapshot).then((_) => _recordSyncOutcome(sync)));
+      unawaited(sync.push(snapshot).then(_recordSyncOutcome));
     }
     return true;
   }
@@ -214,17 +214,17 @@ class ScoutingController extends ChangeNotifier {
     }
     final sync = _syncService;
     if (sync != null) {
-      unawaited(sync.delete(existing).then((_) => _recordSyncOutcome(sync)));
+      unawaited(sync.delete(existing).then(_recordSyncOutcome));
     }
     return true;
   }
 
-  void _recordSyncOutcome(ScoutingSyncService sync) {
-    final state = sync.status.state;
-    if (state == ScoutingSyncState.rejected) {
+  void _recordSyncOutcome(ScoutingSyncStatus? status) {
+    if (status == null) return;
+    if (status.state == ScoutingSyncState.rejected) {
       failedWrites.recordFailure();
       notifyListeners();
-    } else if (state == ScoutingSyncState.synced) {
+    } else if (status.state == ScoutingSyncState.synced) {
       if (failedWrites.recordSuccess()) notifyListeners();
     }
   }
@@ -321,8 +321,7 @@ class ScoutingController extends ChangeNotifier {
           final index = _entries.indexWhere((entry) => entry.id == id);
           if (index < 0) continue;
           final snapshot = ScoutEntry.fromJson(_entries[index].toJson());
-          await sync.push(snapshot);
-          _recordSyncOutcome(sync);
+          _recordSyncOutcome(await sync.push(snapshot));
         }
       } while (_repushPending);
     } finally {
