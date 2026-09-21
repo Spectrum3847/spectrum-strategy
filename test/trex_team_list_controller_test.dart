@@ -238,7 +238,7 @@ void main() {
     });
   });
 
-  group('addTeams (#1410)', () {
+  group('addTeams', () {
     test('appends a pasted list in one push, not one per team', () async {
       await controller.addColumn('Defense');
       final key = controller.teamList.columns.single.key;

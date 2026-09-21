@@ -7,6 +7,7 @@ import 'package:match13_client/match13_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spectrumstrategy/src/services/firestore_api_key_config.dart';
 import 'package:spectrumstrategy/src/services/match13/match13_ratings_service.dart';
+import 'package:spectrumstrategy/src/services/match13/match13_worker_config.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -47,12 +48,23 @@ void main() {
     Future<http.Response> Function(http.Request) handler, {
     String? teamKey = 'm13_live_test',
     bool isWeb = false,
+    String? workerOrigin,
     void Function(http.Request)? onRequest,
   }) => Match13RatingsService(
     config: FirestoreApiKeyConfig.match13(remoteFetcher: () async => teamKey),
+    workerConfig: Match13WorkerConfig(remoteFetcher: () async => workerOrigin),
     isWeb: isWeb,
     clientFactory: (apiKey) => Match13Client(
       apiKey: apiKey,
+      sleep: (_) async {},
+      httpClient: MockClient((request) {
+        onRequest?.call(request);
+        return handler(request);
+      }),
+    ),
+    proxyClientFactory: (baseUrl) => Match13Client(
+      apiKey: null,
+      baseUrl: baseUrl,
       sleep: (_) async {},
       httpClient: MockClient((request) {
         onRequest?.call(request);
@@ -141,6 +153,40 @@ void main() {
       reason: 'the API sends no CORS headers, so a browser can never read it',
     );
   });
+
+  test(
+    'on web with a Worker origin, requests go through it with no key',
+    () async {
+      final seen = <http.Request>[];
+      final service = serviceWith(
+        (_) async => http.Response(
+          jsonEncode(<String, dynamic>{
+            'eventKey': '2026txhou',
+            'year': 2026,
+            'teams': <dynamic>[teamRow(3847, xpEnd: 81.5)],
+          }),
+          200,
+        ),
+        isWeb: true,
+        workerOrigin: 'https://spectrumstrategy-match13.example.workers.dev',
+        onRequest: seen.add,
+      );
+
+      final ratings = await service.ratingsFor('2026txhou');
+
+      expect(ratings, hasLength(1));
+      expect(seen, hasLength(1));
+      expect(
+        seen.single.url.toString(),
+        'https://spectrumstrategy-match13.example.workers.dev/v1/events/2026txhou/teams',
+      );
+      expect(
+        seen.single.headers.containsKey('Authorization'),
+        isFalse,
+        reason: 'the Worker adds the key server-side',
+      );
+    },
+  );
 
   test('an event match13 does not carry answers empty, not null', () async {
     final service = serviceWith(

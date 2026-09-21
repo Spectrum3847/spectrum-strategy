@@ -157,8 +157,7 @@ void main() {
     );
 
     testWidgets(
-      'shows a document field as an attachment row, not a raw Worker key '
-      '(#1594)',
+      'shows a document field as an attachment row, not a raw Worker key',
       (tester) async {
         const config = ScoutConfig(
           title: 'Pit Scouting',

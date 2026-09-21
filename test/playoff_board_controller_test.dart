@@ -71,7 +71,7 @@ void main() {
     });
 
     test('an old five-column board keeps its labels, padded with the new '
-        'sixth default (#1846)', () {
+        'sixth default', () {
       final restored = PlayoffBoard.fromJson(<String, dynamic>{
         'columnLabels': <String>[
           'A tier',
@@ -92,7 +92,7 @@ void main() {
       ]);
     });
 
-    test('the sixth column runs ten rows deeper than the rest (#1846)', () {
+    test('the sixth column runs ten rows deeper than the rest', () {
       final board = const PlayoffBoard().withMeetingCell(
         PlayoffBoard.meetingRowCount + 5,
         PlayoffBoard.meetingColumnCount - 1,

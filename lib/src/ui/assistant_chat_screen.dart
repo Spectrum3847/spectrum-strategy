@@ -373,7 +373,7 @@ class _ThinkingRow extends StatelessWidget {
 
             Flexible(
               child: Text(
-                'Thinking. On-device inference can take real seconds.',
+                'Thinking',
                 style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: scheme.onSurfaceVariant),
               ),

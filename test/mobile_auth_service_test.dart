@@ -156,7 +156,7 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  group('mobile sign-in (#1548)', () {
+  group('mobile sign-in', () {
     test(
       'exchanges the Google token over REST and mints an app session',
       () async {

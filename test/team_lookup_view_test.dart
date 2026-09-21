@@ -217,7 +217,7 @@ void main() {
 
   testWidgets(
     'the spreadsheet shows every scouted field, including team and match '
-    'identity columns (#1842)',
+    'identity columns',
     (tester) async {
       final scouting = await _seed([
         ScoutEntry(
@@ -281,7 +281,7 @@ void main() {
 
   testWidgets(
     'scopes the history to the selected event, keeping entries with no '
-    'event key (#1842, mirrors the Database tab rule from #1868)',
+    'event key (mirrors the Database tab rule)',
     (tester) async {
       final scouting = await _seed([
         ScoutEntry(
@@ -330,7 +330,7 @@ void main() {
 
   testWidgets(
     'a fixed Notes column at the end shows ScoutEntry.notes, separate from '
-    'any comments field value (#1842 review)',
+    'any comments field value',
     (tester) async {
       final scouting = await _seed([
         ScoutEntry(
@@ -356,7 +356,7 @@ void main() {
 
   testWidgets(
     'a stored team number of 0 falls back to ScoutEntry.teamNumber, same as '
-    'a missing one (#1842 review)',
+    'a missing one',
     (tester) async {
       final scouting = await _seed([
         ScoutEntry(

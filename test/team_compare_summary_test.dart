@@ -128,24 +128,21 @@ void main() {
     expect(request.coverage, 2);
   });
 
-  test(
-    'counts a Yellow or Red card value the same as a legacy boolean (#1880)',
-    () {
-      final request = TeamCompareSummary.request(
-        teamNumber: 254,
-        eventKey: '2026txhou',
-        entries: [
-          _entry(254, fieldValues: {'ryCard': 'Yellow'}),
-          _entry(254, fieldValues: {'ryCard': 'Red'}),
-          _entry(254, fieldValues: {'ryCard': 'None'}),
-        ],
-        notes: const <TeamNote>[],
-        config: _config(),
-      )!;
+  test('counts a Yellow or Red card value the same as a legacy boolean', () {
+    final request = TeamCompareSummary.request(
+      teamNumber: 254,
+      eventKey: '2026txhou',
+      entries: [
+        _entry(254, fieldValues: {'ryCard': 'Yellow'}),
+        _entry(254, fieldValues: {'ryCard': 'Red'}),
+        _entry(254, fieldValues: {'ryCard': 'None'}),
+      ],
+      notes: const <TeamNote>[],
+      config: _config(),
+    )!;
 
-      expect(request.prompt, contains('"redOrYellowCards":2'));
-    },
-  );
+    expect(request.prompt, contains('"redOrYellowCards":2'));
+  });
 
   test('omits climb success rate when the team never attempted one', () {
     final request = TeamCompareSummary.request(

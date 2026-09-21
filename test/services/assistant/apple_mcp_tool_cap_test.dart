@@ -414,7 +414,7 @@ int _appleToolChars(List<AppleAiTool> tools) => tools.fold(
 );
 
 void main() {
-  group('AppleAssistantBackend MCP tool cap (#1654)', () {
+  group('AppleAssistantBackend MCP tool cap', () {
     test(
       'sends six MCP tools, by the exact names the maintainer decided',
       () async {

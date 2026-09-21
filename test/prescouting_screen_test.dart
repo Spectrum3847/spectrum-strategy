@@ -248,8 +248,7 @@ void main() {
   });
 
   testWidgets(
-    'an off-list team with records is reachable and disappears once deleted '
-    '(#1447)',
+    'an off-list team with records is reachable and disappears once deleted',
     (tester) async {
       final storage = FakePrescoutingStorage();
       await storage.saveEntry(
@@ -381,7 +380,7 @@ void main() {
   ]) {
     testWidgets(
       '$state locks a viewer\'s own record and the chip says why, not just '
-      'a bare lock icon (#1699)',
+      'a bare lock icon',
       (tester) async {
         final storage = FakePrescoutingStorage();
         await storage.saveEntry(
@@ -414,7 +413,7 @@ void main() {
   }
 
   testWidgets(
-    'the fuel counters take +1/+5/+10 taps, matching the match form (#1409)',
+    'the fuel counters take +1/+5/+10 taps, matching the match form',
     (tester) async {
       final storage = FakePrescoutingStorage();
       final controller = await _bootController(storage: storage);
@@ -434,7 +433,7 @@ void main() {
   );
 
   testWidgets(
-    'a record captured while fuel was a number field keeps its counts (#1699)',
+    'a record captured while fuel was a number field keeps its counts',
     (tester) async {
       final storage = FakePrescoutingStorage();
       await storage.saveEntry(
@@ -472,46 +471,45 @@ void main() {
     },
   );
 
-  testWidgets(
-    'a stored value that reads as no count at all is left alone (#1699)',
-    (tester) async {
-      final storage = FakePrescoutingStorage();
-      await storage.saveEntry(
-        PrescoutEntry(
-          id: 'unreadable-entry',
-          teamNumber: 254,
-          eventKey: 'chezyChamps',
-          fieldValues: <String, dynamic>{
-            'watchedEvent': 'Chezy Champs',
-            'matchNumber': '7',
-            'autoFuelScored': 'a lot',
-            'teleopFuelScored': 'NaN',
-          },
-          authorDisplayName: 'Grace',
-        ),
-      );
-      final controller = await _bootController(storage: storage);
-      await _pumpScreen(tester, controller: controller, canEditAnyEntry: true);
-      await _openDataTab(tester);
-      await _selectEvent(tester);
-      await _selectTeam(tester, 254);
+  testWidgets('a stored value that reads as no count at all is left alone', (
+    tester,
+  ) async {
+    final storage = FakePrescoutingStorage();
+    await storage.saveEntry(
+      PrescoutEntry(
+        id: 'unreadable-entry',
+        teamNumber: 254,
+        eventKey: 'chezyChamps',
+        fieldValues: <String, dynamic>{
+          'watchedEvent': 'Chezy Champs',
+          'matchNumber': '7',
+          'autoFuelScored': 'a lot',
+          'teleopFuelScored': 'NaN',
+        },
+        authorDisplayName: 'Grace',
+      ),
+    );
+    final controller = await _bootController(storage: storage);
+    await _pumpScreen(tester, controller: controller, canEditAnyEntry: true);
+    await _openDataTab(tester);
+    await _selectEvent(tester);
+    await _selectTeam(tester, 254);
 
-      await tester.tap(find.text('Grace').last);
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Grace').last);
+    await tester.pumpAndSettle();
 
-      expect(
-        find.byWidgetPredicate(
-          (w) => w is Text && w.data == '0' && w.style?.fontSize == 24,
-        ),
-        findsNWidgets(2),
-      );
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Text && w.data == '0' && w.style?.fontSize == 24,
+      ),
+      findsNWidgets(2),
+    );
 
-      await _tapSaveRecord(tester);
-      final saved = controller.entries.single.fieldValues;
-      expect(saved['autoFuelScored'], 'a lot');
-      expect(saved['teleopFuelScored'], 'NaN');
-    },
-  );
+    await _tapSaveRecord(tester);
+    final saved = controller.entries.single.fieldValues;
+    expect(saved['autoFuelScored'], 'a lot');
+    expect(saved['teleopFuelScored'], 'NaN');
+  });
 
   testWidgets('summary tab searches down to one team', (tester) async {
     final storage = FakePrescoutingStorage();
@@ -597,7 +595,7 @@ void main() {
     expect(find.textContaining('no in-app player'), findsOneWidget);
   });
 
-  testWidgets('searching down to one team lists that team\'s records (#1392)', (
+  testWidgets('searching down to one team lists that team\'s records', (
     tester,
   ) async {
     final storage = FakePrescoutingStorage();

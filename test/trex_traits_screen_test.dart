@@ -350,7 +350,7 @@ void main() {
 
   testWidgets(
     'the event field is a picker over available events, defaulting to the '
-    'active event (#1775)',
+    'active event',
     (tester) async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final storage = FakeTrexTraitReportStorage();

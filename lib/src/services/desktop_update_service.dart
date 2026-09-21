@@ -58,6 +58,7 @@ class DesktopUpdateService {
     String? buildTimestamp,
     String? buildCommit,
     DateTime Function()? now,
+    this._assetSelector,
   }) : _client = client ?? TimeoutHttpClient(),
        _currentVersionLoader = currentVersionLoader ?? _defaultVersionLoader,
        _repositories = repositories ?? _defaultRepositories,
@@ -100,6 +101,9 @@ class DesktopUpdateService {
   final String _buildTimestamp;
   final String _buildCommit;
   final DateTime Function() _now;
+
+  final ({String? url, String? digest}) Function(dynamic assets)?
+  _assetSelector;
 
   Future<DesktopUpdateChannel> currentChannel() async {
     final prefs = await _prefsLoader();
@@ -320,7 +324,9 @@ class DesktopUpdateService {
     if (requireVersion && version == null) {
       return null;
     }
-    final asset = _selfUpdateAsset(decoded['assets'], _platform());
+    final asset = _assetSelector != null
+        ? _assetSelector(decoded['assets'])
+        : _selfUpdateAsset(decoded['assets'], _platform());
     return _ReleaseSnapshot(
       version: version,
       rawTag: tagName,

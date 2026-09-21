@@ -6,7 +6,7 @@ import 'package:spectrumstrategy/src/ui/platform_target.dart';
 
 void main() {
   group('spectrumGlassSupported', () {
-    test('is off on macOS without SPECTRUM_GLASS_MACOS (#1736)', () async {
+    test('is off on macOS without SPECTRUM_GLASS_MACOS', () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
 

@@ -376,7 +376,7 @@ void main() {
     );
   });
 
-  group('source-labelled stats (#1843)', () {
+  group('source-labelled stats', () {
     test('event value only: no source label needed', () {
       final entries = MatchInfoStats.build(
         matches: [
@@ -436,7 +436,7 @@ void main() {
     });
   });
 
-  group('drive coach, endgame climb, and notes (#1843)', () {
+  group('drive coach, endgame climb, and notes', () {
     test('drive coach comes from the pit form', () {
       final entries = MatchInfoStats.build(
         matches: [

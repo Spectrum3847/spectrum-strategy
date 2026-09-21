@@ -452,7 +452,7 @@ void main() {
     });
 
     test('notifies once the signed-in uid resolves during initialize(), even '
-        'when the sync status never changes value (#1699)', () async {
+        'when the sync status never changes value', () async {
       storage.data['own'] = PrescoutEntry(
         id: 'own',
         teamNumber: 254,

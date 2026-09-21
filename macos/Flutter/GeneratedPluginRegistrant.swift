@@ -15,10 +15,10 @@ import google_sign_in_ios
 import liquid_glass
 import mobile_scanner
 import package_info_plus
+import posthog_flutter
 import screen_retriever_macos
 import share_plus
 import shared_preferences_foundation
-import tray_manager
 import url_launcher_macos
 import webview_flutter_wkwebview
 import window_manager
@@ -38,10 +38,10 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   LiquidGlassPlugin.register(with: registry.registrar(forPlugin: "LiquidGlassPlugin"))
   MobileScannerPlugin.register(with: registry.registrar(forPlugin: "MobileScannerPlugin"))
   FPPPackageInfoPlusPlugin.register(with: registry.registrar(forPlugin: "FPPPackageInfoPlusPlugin"))
+  PosthogFlutterPlugin.register(with: registry.registrar(forPlugin: "PosthogFlutterPlugin"))
   ScreenRetrieverMacosPlugin.register(with: registry.registrar(forPlugin: "ScreenRetrieverMacosPlugin"))
   SharePlusMacosPlugin.register(with: registry.registrar(forPlugin: "SharePlusMacosPlugin"))
   SharedPreferencesPlugin.register(with: registry.registrar(forPlugin: "SharedPreferencesPlugin"))
-  TrayManagerPlugin.register(with: registry.registrar(forPlugin: "TrayManagerPlugin"))
   UrlLauncherPlugin.register(with: registry.registrar(forPlugin: "UrlLauncherPlugin"))
   WebViewFlutterPlugin.register(with: registry.registrar(forPlugin: "WebViewFlutterPlugin"))
   WindowManagerPlugin.register(with: registry.registrar(forPlugin: "WindowManagerPlugin"))

@@ -187,27 +187,26 @@ void main() {
     },
   );
 
-  testWidgets(
-    'entering a non-numeric Team Number cell value does not save (#1382)',
-    (tester) async {
-      final scouting = await pumpTable(tester, canEdit: true);
+  testWidgets('entering a non-numeric Team Number cell value does not save', (
+    tester,
+  ) async {
+    final scouting = await pumpTable(tester, canEdit: true);
 
-      await tester.tap(find.text('3847'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('3847'));
+    await tester.pumpAndSettle();
 
-      final field = find.widgetWithText(TextField, '3847');
-      await tester.enterText(field, 'abc');
-      await tester.tap(find.text('Save'));
-      await tester.pump();
+    final field = find.widgetWithText(TextField, '3847');
+    await tester.enterText(field, 'abc');
+    await tester.tap(find.text('Save'));
+    await tester.pump();
 
-      expect(find.text('Enter a whole number.'), findsOneWidget);
-      final entry = scouting.entries.single;
-      expect(entry.teamNumber, 3847);
-      expect(entry.fieldValues['pTnumber'], 3847);
-    },
-  );
+    expect(find.text('Enter a whole number.'), findsOneWidget);
+    final entry = scouting.entries.single;
+    expect(entry.teamNumber, 3847);
+    expect(entry.fieldValues['pTnumber'], 3847);
+  });
 
-  testWidgets('zero and negative Team Number cell values do not save (#1382)', (
+  testWidgets('zero and negative Team Number cell values do not save', (
     tester,
   ) async {
     final scouting = await pumpTable(tester, canEdit: true);
@@ -242,7 +241,7 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
   });
 
-  group('role-gated editability (#1382)', () {
+  group('role-gated editability', () {
     testWidgets('a scouter can edit a cell on their own entry even without '
         'canEditAnyEntry', (tester) async {
       final scouting = await pumpTable(
@@ -278,7 +277,7 @@ void main() {
     });
   });
 
-  group('cell edit round-trip preserves value types (#1382)', () {
+  group('cell edit round-trip preserves value types', () {
     testWidgets('a counter (numeric) field saves as a number, not a string', (
       tester,
     ) async {
@@ -323,7 +322,7 @@ void main() {
     });
   });
 
-  testWidgets('a select cell stores the choice key, not its label (#1382)', (
+  testWidgets('a select cell stores the choice key, not its label', (
     tester,
   ) async {
     final scouting = await pumpTable(tester, canEdit: true);
@@ -510,7 +509,7 @@ void main() {
     expect(find.byIcon(Icons.edit_note_rounded), findsOneWidget);
   });
 
-  group('per-row delete action (#1958)', () {
+  group('per-row delete action', () {
     testWidgets('a delete action is shown for a row the user may edit', (
       tester,
     ) async {

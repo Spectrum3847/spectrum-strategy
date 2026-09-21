@@ -24,7 +24,95 @@ class TourStep {
 
 typedef TourMenuItem = ({int tabIndex, IconData icon, String label});
 
-List<TourStep> buildTourSteps(List<int> visibleTabIndices) {
+const Map<int, TourStep> _kTourStepsByTabIndex = {
+  0: TourStep(
+    icon: Icons.draw_outlined,
+    tabIndex: 0,
+    title: 'Strategy',
+    body:
+        'Draw the plan for each match on the field, phase by phase: '
+        'auton, teleop, endgame. Place robot markers, add notes, and '
+        'share the board as an image.',
+  ),
+  1: TourStep(
+    icon: Icons.assignment_outlined,
+    tabIndex: 1,
+    title: 'Scout',
+    body:
+        'Record what each robot does, match by match. Entries save on '
+        'the device first and sync to the team database when you are '
+        'online; QR transfer covers the no-signal case.',
+  ),
+  2: TourStep(
+    icon: Icons.flag_outlined,
+    tabIndex: 2,
+    title: 'Prematch',
+    body:
+        'Walk up to the field prepared: event rankings, team analysis '
+        'and comparisons, and playoff ranking.',
+  ),
+  3: TourStep(
+    icon: Icons.table_rows_outlined,
+    tabIndex: 3,
+    title: 'Database',
+    body:
+        'Every scouting entry from the team, filterable by team and '
+        'match. It is read-only and stays in sync with the cloud.',
+  ),
+  4: TourStep(
+    icon: Icons.menu_book_outlined,
+    tabIndex: 4,
+    title: 'Docs',
+    body:
+        'Guides tailored to your role live here: how to scout, run '
+        'strategy, or administer the app. Open one any time you are '
+        'unsure how something works.',
+  ),
+  5: TourStep(
+    icon: Icons.manage_accounts_outlined,
+    tabIndex: 5,
+    title: 'Users',
+    body:
+        'Set roles for new teammates. New accounts start as a scouter '
+        'once they sign in, so check here to grant strategy or admin '
+        'access.',
+  ),
+  6: TourStep(
+    icon: Icons.settings_outlined,
+    tabIndex: 6,
+    title: 'Settings',
+    body:
+        'The scout form, the event, and your account live here. You '
+        'can replay this tour from Settings any time.',
+  ),
+  7: TourStep(
+    icon: Icons.calendar_month_outlined,
+    tabIndex: 7,
+    title: 'Schedule',
+    body:
+        'The match schedule for your event, plus an index of every team '
+        'attending. Search your own team number to see just the matches '
+        'you play.',
+  ),
+  8: TourStep(
+    icon: Icons.insights_outlined,
+    tabIndex: 8,
+    title: 'Usage',
+    body:
+        'What is actually getting used across the team, for deciding what '
+        'to work on next.',
+  ),
+  9: TourStep(
+    icon: Icons.auto_awesome_outlined,
+    tabIndex: 9,
+    title: 'AI',
+    body:
+        'Chat with the assistant, and set up the local model and its '
+        'connection to the Spectrum MCP server.',
+  ),
+};
+
+List<TourStep> buildTourSteps(List<int> orderedTabIndices) {
   return <TourStep>[
     const TourStep(
       icon: Icons.waving_hand_outlined,
@@ -35,83 +123,7 @@ List<TourStep> buildTourSteps(List<int> visibleTabIndices) {
           'match schedule, and EPA stats.',
       showEventAction: true,
     ),
-    if (visibleTabIndices.contains(0))
-      const TourStep(
-        icon: Icons.draw_outlined,
-        tabIndex: 0,
-        title: 'Strategy',
-        body:
-            'Draw the plan for each match on the field, phase by phase: '
-            'auton, teleop, endgame. Place robot markers, add notes, and '
-            'share the board as an image.',
-      ),
-    if (visibleTabIndices.contains(1))
-      const TourStep(
-        icon: Icons.assignment_outlined,
-        tabIndex: 1,
-        title: 'Scout',
-        body:
-            'Record what each robot does, match by match. Entries save on '
-            'the device first and sync to the team database when you are '
-            'online; QR transfer covers the no-signal case.',
-      ),
-    if (visibleTabIndices.contains(2))
-      const TourStep(
-        icon: Icons.flag_outlined,
-        tabIndex: 2,
-        title: 'Prematch',
-        body:
-            'Walk up to the field prepared: event rankings, team analysis '
-            'and comparisons, and playoff ranking.',
-      ),
-    if (visibleTabIndices.contains(3))
-      const TourStep(
-        icon: Icons.table_rows_outlined,
-        tabIndex: 3,
-        title: 'Database',
-        body:
-            'Every scouting entry from the team, filterable by team and '
-            'match. It is read-only and stays in sync with the cloud.',
-      ),
-    if (visibleTabIndices.contains(7))
-      const TourStep(
-        icon: Icons.calendar_month_outlined,
-        tabIndex: 7,
-        title: 'Schedule',
-        body:
-            'The match schedule for your event, plus an index of every team '
-            'attending. Search your own team number to see just the matches '
-            'you play.',
-      ),
-    if (visibleTabIndices.contains(4))
-      const TourStep(
-        icon: Icons.menu_book_outlined,
-        tabIndex: 4,
-        title: 'Docs',
-        body:
-            'Guides tailored to your role live here: how to scout, run '
-            'strategy, or administer the app. Open one any time you are '
-            'unsure how something works.',
-      ),
-    if (visibleTabIndices.contains(5))
-      const TourStep(
-        icon: Icons.manage_accounts_outlined,
-        tabIndex: 5,
-        title: 'Users',
-        body:
-            'Set roles for new teammates. New accounts start as a scouter '
-            'once they sign in, so check here to grant strategy or admin '
-            'access.',
-      ),
-    if (visibleTabIndices.contains(6))
-      const TourStep(
-        icon: Icons.settings_outlined,
-        tabIndex: 6,
-        title: 'Settings',
-        body:
-            'The scout form, the event, and your account live here. You '
-            'can replay this tour from Settings any time.',
-      ),
+    for (final tabIndex in orderedTabIndices) ?_kTourStepsByTabIndex[tabIndex],
   ];
 }
 

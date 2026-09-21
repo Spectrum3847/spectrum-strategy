@@ -327,78 +327,77 @@ void main() {
 
     expect(fulls, greaterThanOrEqualTo(2));
   });
-  test('a poll never overlaps another, so no snapshot can arrive out of order '
-      '(#1511)', () async {
-    final gate = Completer<void>();
-    var queries = 0;
-    final service = DesktopShiftTradeSyncService(
-      authService: _signedInAuth(),
-      firestore: _firestore(
-        MockClient((request) async {
-          queries++;
-          await gate.future;
-          return request.url.path.endsWith(':runQuery')
-              ? http.Response(jsonEncode(<dynamic>[]), 200)
-              : http.Response(jsonEncode({'documents': <dynamic>[]}), 200);
-        }),
-      ),
-      pollInterval: const Duration(milliseconds: 5),
-    );
-
-    await service.initialize();
-
-    await Future<void>.delayed(const Duration(milliseconds: 60));
-    expect(queries, 1);
-
-    gate.complete();
-    await Future<void>.delayed(Duration.zero);
-    await service.dispose();
-  });
   test(
-    'a fetch open at sign-out does not emit the previous session (#1600)',
+    'a poll never overlaps another, so no snapshot can arrive out of order',
     () async {
-      final trade = _trade('t-prev');
-      final auth = _signedInAuth();
       final gate = Completer<void>();
+      var queries = 0;
       final service = DesktopShiftTradeSyncService(
-        authService: auth,
+        authService: _signedInAuth(),
         firestore: _firestore(
           MockClient((request) async {
+            queries++;
             await gate.future;
             return request.url.path.endsWith(':runQuery')
-                ? http.Response(
-                    jsonEncode([
-                      {
-                        'document': jsonDecode(
-                          _doc(trade, serverTs: trade.updatedAt),
-                        ),
-                      },
-                    ]),
-                    200,
-                  )
-                : http.Response(
-                    jsonEncode({
-                      'documents': [
-                        jsonDecode(_doc(trade, serverTs: trade.updatedAt)),
-                      ],
-                    }),
-                    200,
-                  );
+                ? http.Response(jsonEncode(<dynamic>[]), 200)
+                : http.Response(jsonEncode({'documents': <dynamic>[]}), 200);
           }),
         ),
+        pollInterval: const Duration(milliseconds: 5),
       );
 
-      final emissions = <List<ShiftTrade>>[];
-      final sub = service.tradesStream.listen(emissions.add);
       await service.initialize();
-      await Future<void>.delayed(Duration.zero);
-      await auth.signOut();
-      gate.complete();
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      await sub.cancel();
 
-      expect(emissions.expand((e) => e), isEmpty);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(queries, 1);
+
+      gate.complete();
+      await Future<void>.delayed(Duration.zero);
       await service.dispose();
     },
   );
+  test('a fetch open at sign-out does not emit the previous session', () async {
+    final trade = _trade('t-prev');
+    final auth = _signedInAuth();
+    final gate = Completer<void>();
+    final service = DesktopShiftTradeSyncService(
+      authService: auth,
+      firestore: _firestore(
+        MockClient((request) async {
+          await gate.future;
+          return request.url.path.endsWith(':runQuery')
+              ? http.Response(
+                  jsonEncode([
+                    {
+                      'document': jsonDecode(
+                        _doc(trade, serverTs: trade.updatedAt),
+                      ),
+                    },
+                  ]),
+                  200,
+                )
+              : http.Response(
+                  jsonEncode({
+                    'documents': [
+                      jsonDecode(_doc(trade, serverTs: trade.updatedAt)),
+                    ],
+                  }),
+                  200,
+                );
+        }),
+      ),
+    );
+
+    final emissions = <List<ShiftTrade>>[];
+    final sub = service.tradesStream.listen(emissions.add);
+    await service.initialize();
+    await Future<void>.delayed(Duration.zero);
+    await auth.signOut();
+    gate.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await sub.cancel();
+
+    expect(emissions.expand((e) => e), isEmpty);
+    await service.dispose();
+  });
 }

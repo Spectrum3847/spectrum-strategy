@@ -13,6 +13,9 @@ bool get isDesktopOs =>
 bool get isMacosPlatform =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
 
+bool get isAndroidPlatform =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
 bool get isApplePlatform =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.iOS ||

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../services/analytics_service.dart';
 import '../../state/failed_write_tracker.dart';
 import '../models/pit_scout_entry.dart';
 import '../services/pit_photo_store.dart';
@@ -15,12 +16,15 @@ class PitScoutingController extends ChangeNotifier {
     this._syncService,
     this._photoStore,
     this._photoUploader,
-  }) : _storage = storage ?? SharedPreferencesPitScoutingStorage();
+    AnalyticsService? analytics,
+  }) : _storage = storage ?? SharedPreferencesPitScoutingStorage(),
+       _analytics = analytics ?? const NoopAnalyticsService();
 
   final PitScoutingStorage _storage;
   final PitScoutingSyncService? _syncService;
   final PitPhotoStore? _photoStore;
   final PitPhotoUploadService? _photoUploader;
+  final AnalyticsService _analytics;
 
   PitPhotoStore? get photoStore => _photoStore;
   PitPhotoUploadService? get photoUploader => _photoUploader;
@@ -133,6 +137,7 @@ class PitScoutingController extends ChangeNotifier {
       );
       return false;
     }
+    _analytics.capture('pit_scout_entry_saved');
     final sync = _syncService;
     if (sync != null) {
       unawaited(sync.push(snapshot));

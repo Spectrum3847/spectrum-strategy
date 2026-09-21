@@ -3,7 +3,7 @@ description: "FRC strategy / scouting / prematch app. Ships to iOS, Android, and
 
 publish_to: 'none'
 
-version: 1.0.3+30
+version: 1.1.0-rc.1+31
 
 environment:
   sdk: ^3.13.0
@@ -24,7 +24,7 @@ dependencies:
   firestore_client:
     git:
       url: https://github.com/Project516/firestore_client.git
-      ref: v0.5.1
+      ref: v0.6.0
 
   tba_client:
     git:
@@ -38,24 +38,24 @@ dependencies:
   match13_client:
     git:
       url: https://github.com/Project516/match13_client.git
-      ref: v0.1.0
+      ref: v0.2.0
 
   liquid_glass:
     git:
       url: https://github.com/Project516/spectrumflutter-native.git
-      ref: v0.6.0
+      ref: liquid_glass-v0.7.0
       path: packages/liquid_glass
 
   apple_ai:
     git:
       url: https://github.com/Project516/spectrumflutter-native.git
-      ref: v0.6.0
+      ref: apple_ai-v0.1.1
       path: packages/apple_ai
 
   apple_web_auth:
     git:
       url: https://github.com/Project516/spectrumflutter-native.git
-      ref: v0.6.0
+      ref: apple_web_auth-v0.0.2
       path: packages/apple_web_auth
   mobile_scanner: ^7.4.0
 
@@ -69,7 +69,7 @@ dependencies:
 
   window_manager: ^0.5.2
 
-  tray_manager: ^0.5.3
+  tray_manager: ^0.7.0
   qr_flutter: ^4.1.0
   share_plus: ^13.3.0
   file_picker: ^13.0.0
@@ -86,6 +86,7 @@ dependencies:
   webview_flutter: ^4.14.1
 
   web: ^1.1.0
+  posthog_flutter: ^5.44.2
 
 dev_dependencies:
   flutter_test:

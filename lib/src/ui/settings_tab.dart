@@ -12,6 +12,7 @@ import 'platform_target.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/android_update_service.dart';
 import '../services/debug_info.dart';
 import '../services/desktop_launcher_service.dart';
 import '../services/desktop_tray_service.dart';
@@ -27,6 +28,7 @@ import '../services/issue_report_service.dart';
 import '../services/report_screenshot_picker.dart';
 import '../services/spectrum_auth_service.dart';
 import '../services/telemetry_service.dart';
+import '../services/web_cache_reset.dart';
 import '../services/web_channel_service.dart';
 import '../models/user_role.dart';
 import 'about_screen.dart';
@@ -142,6 +144,7 @@ class _SettingsTabState extends State<SettingsTab> {
 
     final titleCtrl = TextEditingController();
     final bodyCtrl = TextEditingController();
+    final bodyFocus = FocusNode();
     var kind = 'bug';
     String? area;
     String? impact;
@@ -219,6 +222,7 @@ class _SettingsTabState extends State<SettingsTab> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: bodyCtrl,
+                    focusNode: bodyFocus,
                     maxLines: 5,
                     maxLength: 4096,
                     textCapitalization: TextCapitalization.sentences,
@@ -239,6 +243,14 @@ class _SettingsTabState extends State<SettingsTab> {
                       onChanged: () => setDialogState(() {}),
                       onError: (message) =>
                           _showReportSnack(message, isError: true),
+
+                      onPickComplete: kIsWeb
+                          ? () => WidgetsBinding.instance.addPostFrameCallback((
+                              _,
+                            ) {
+                              if (ctx.mounted) bodyFocus.requestFocus();
+                            })
+                          : null,
                     ),
                   ],
                 ],
@@ -262,6 +274,7 @@ class _SettingsTabState extends State<SettingsTab> {
     final body = bodyCtrl.text.trim();
     titleCtrl.dispose();
     bodyCtrl.dispose();
+    bodyFocus.dispose();
     if (submitted != true) return;
     if (title.isEmpty) {
       _showReportSnack('Add a short summary before sending.', isError: true);
@@ -1082,6 +1095,8 @@ class _SettingsTabState extends State<SettingsTab> {
             if (kIsWeb) ...[
               const SizedBox(height: 12),
               const _WebChannelTile(),
+              const SizedBox(height: 12),
+              const _ClearWebCacheTile(),
             ],
             if (isDesktopPlatform) ...[
               const SizedBox(height: 12),
@@ -1090,6 +1105,10 @@ class _SettingsTabState extends State<SettingsTab> {
               const _DesktopUpdateTile(),
               const SizedBox(height: 12),
               const _MinimizeToTrayTile(),
+            ],
+            if (isAndroidPlatform) ...[
+              const SizedBox(height: 12),
+              const _AndroidUpdateTile(),
             ],
           ],
         );
@@ -1391,6 +1410,63 @@ class _WebChannelTileState extends State<_WebChannelTile> {
   }
 }
 
+class _ClearWebCacheTile extends StatefulWidget {
+  const _ClearWebCacheTile();
+
+  @override
+  State<_ClearWebCacheTile> createState() => _ClearWebCacheTileState();
+}
+
+class _ClearWebCacheTileState extends State<_ClearWebCacheTile> {
+  bool _clearing = false;
+  String? _status;
+
+  Future<void> _clear() async {
+    setState(() {
+      _clearing = true;
+      _status = null;
+    });
+    try {
+      await clearCachedBuild();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _clearing = false;
+        _status = 'Could not clear the cache: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Clear cache', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              'Web keeps this build offline-ready in the browser, which can '
+              'show an old build after a deploy. Clear it and reload to '
+              'force this tab to fetch the current one.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _clearing ? null : _clear,
+              icon: const Icon(Icons.refresh_rounded),
+              label: Text(_clearing ? 'Clearing...' : 'Clear cache and reload'),
+            ),
+            if (_status != null) ...[const SizedBox(height: 8), Text(_status!)],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DesktopUpdateTile extends StatefulWidget {
   const _DesktopUpdateTile();
 
@@ -1557,6 +1633,211 @@ class _DesktopUpdateTileState extends State<_DesktopUpdateTile> {
               title: const Text('Check and install on launch'),
               value: _autoUpdate,
               onChanged: _setAutoUpdate,
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<DesktopUpdateChannel>(
+              segments: const [
+                ButtonSegment(
+                  value: DesktopUpdateChannel.stable,
+                  label: SegmentLabel('Stable'),
+                ),
+                ButtonSegment(
+                  value: DesktopUpdateChannel.nightly,
+                  label: SegmentLabel('Nightly'),
+                ),
+              ],
+              selected: {_channel},
+              onSelectionChanged: (_checking || _installing)
+                  ? null
+                  : (s) => _switchChannel(s.first),
+              showSelectedIcon: false,
+            ),
+            if (_status != null) ...[const SizedBox(height: 8), Text(_status!)],
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (_update != null)
+                  FilledButton.icon(
+                    onPressed: _installing
+                        ? null
+                        : (_canInstall ? _install : _openDownload),
+                    icon: _installing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.download_rounded, size: 18),
+                    label: Text(_canInstall ? 'Install update' : 'Get update'),
+                  ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: (_checking || _installing) ? null : _check,
+                  icon: _checking
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Check for updates'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AndroidUpdateTile extends StatefulWidget {
+  const _AndroidUpdateTile();
+
+  @override
+  State<_AndroidUpdateTile> createState() => _AndroidUpdateTileState();
+}
+
+class _AndroidUpdateTileState extends State<_AndroidUpdateTile> {
+  final AndroidUpdateService _service = AndroidUpdateService();
+  bool _checking = false;
+  bool _installing = false;
+  String? _status;
+  AndroidUpdateInfo? _update;
+  DesktopUpdateChannel _channel = DesktopUpdateChannel.stable;
+
+  @override
+  void initState() {
+    super.initState();
+    _service
+        .currentChannel()
+        .then((channel) {
+          if (mounted) setState(() => _channel = channel);
+        })
+        .catchError((Object error) {
+          debugPrint('Update channel read failed: $error');
+        });
+  }
+
+  bool get _canInstall =>
+      _update?.apkUrl != null && (_update?.expectedSha256?.isNotEmpty ?? false);
+
+  Future<void> _check() async {
+    setState(() {
+      _checking = true;
+      _status = null;
+      _update = null;
+    });
+    try {
+      final channel = await _service.currentChannel();
+      final result = await _service.checkForUpdate(channel: channel);
+      if (!mounted) return;
+      setState(() {
+        _channel = channel;
+        _applyResult(result, channel);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _status = 'Could not check for updates right now.');
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  Future<void> _switchChannel(DesktopUpdateChannel channel) async {
+    setState(() {
+      _channel = channel;
+      _checking = true;
+      _status = null;
+      _update = null;
+    });
+    try {
+      await _service.setChannel(channel);
+      final result = await _service.checkForUpdate(
+        channel: channel,
+        ignoreVersionGate: true,
+      );
+      if (!mounted) return;
+      setState(() => _applyResult(result, channel));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _status = 'Could not check for updates right now.');
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  void _applyResult(AndroidUpdateCheck result, DesktopUpdateChannel channel) {
+    _update = result.update;
+    if (result.update != null) {
+      _status = 'Update available: ${result.update!.latestVersion}.';
+    } else if (result.hasRelease) {
+      _status = 'You are on the latest version.';
+    } else {
+      _status =
+          'No ${channel.name} build has been published yet, so there is '
+          'nothing to update to.';
+    }
+  }
+
+  Future<void> _openDownload() async {
+    final info = _update;
+    if (info == null) return;
+    await launchUrl(info.releaseUrl, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _install() async {
+    final info = _update;
+    if (info == null) return;
+    if (!_canInstall) {
+      setState(() {
+        _status =
+            'This release has no checksum, so it cannot be installed '
+            'automatically. Opening the download page.';
+      });
+      await launchUrl(info.releaseUrl, mode: LaunchMode.externalApplication);
+      return;
+    }
+    setState(() {
+      _installing = true;
+      _status = 'Downloading update...';
+    });
+    try {
+      final outcome = await _service.downloadAndInstall(info);
+      if (!mounted) return;
+      setState(() {
+        _installing = false;
+        _status = outcome == AndroidInstallOutcome.permissionRequired
+            ? 'Allow installs from Spectrum Strategy on the screen that '
+                  'just opened, then tap Install again.'
+            : 'Downloaded. Confirm the install prompt to finish.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _installing = false;
+        _status = 'Could not install automatically; opening the download page.';
+      });
+      await launchUrl(info.releaseUrl, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('App updates', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              'Sideloaded installs have no app store to update them. Check '
+              'the public releases repo by hand below, or switch tracks to '
+              'follow nightly builds instead of stable releases.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             SegmentedButton<DesktopUpdateChannel>(
@@ -1864,10 +2145,15 @@ class _LiquidGlassTileState extends State<_LiquidGlassTile> {
               Text('Liquid Glass', style: theme.textTheme.titleMedium),
               const SizedBox(height: 4),
               Text(
-                'Beta. Draws $glassChromeSurfaces on Apple\'s Liquid Glass '
-                'material (iOS 26, iPadOS 26, macOS 26), with the content '
-                'behind them showing through. Off by default while it is '
-                'being tested.',
+                isMacosPlatform
+                    ? 'Beta. Draws $glassChromeSurfaces on Apple\'s Liquid '
+                          'Glass material (macOS 26), with the content '
+                          'behind them showing through. Off by default '
+                          'while it is being tested.'
+                    : 'Draws $glassChromeSurfaces on Apple\'s Liquid Glass '
+                          'material (iOS 26, iPadOS 26), with the content '
+                          'behind them showing through. On by default; turn '
+                          'this off for the flat design instead.',
                 style: theme.textTheme.bodySmall,
               ),
               SwitchListTile(
@@ -1889,11 +2175,14 @@ class _ScreenshotPicker extends StatelessWidget {
     required this.screenshots,
     required this.onChanged,
     required this.onError,
+    this.onPickComplete,
   });
 
   final List<PickedScreenshot> screenshots;
   final VoidCallback onChanged;
   final void Function(String message) onError;
+
+  final VoidCallback? onPickComplete;
 
   Future<void> _add() async {
     try {
@@ -1905,6 +2194,8 @@ class _ScreenshotPicker extends StatelessWidget {
       onError(e.message);
     } catch (e) {
       onError('Could not attach that image: $e');
+    } finally {
+      onPickComplete?.call();
     }
   }
 

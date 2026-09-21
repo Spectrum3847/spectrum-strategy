@@ -134,7 +134,7 @@ void main() {
   ]) {
     testWidgets(
       '$state shows the sync chip so a locked report reads as a sign-in '
-      'problem, not a mystery (#1710)',
+      'problem, not a mystery',
       (tester) async {
         final sync = FakePostMatchReportSyncService(initialState: state);
         final controller = await readyController(sync);

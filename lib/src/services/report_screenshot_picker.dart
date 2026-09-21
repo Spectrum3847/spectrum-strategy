@@ -2,10 +2,11 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, TargetPlatform;
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:image_picker/image_picker.dart';
 
 import '../scouting/services/pit_photo_capture.dart' show compressPhotoBytes;
+import 'report_screenshot_web_input.dart';
 
 const int maxReportScreenshots = 3;
 
@@ -35,6 +36,15 @@ Future<PickedScreenshot?> pickReportScreenshot({
   ImagePicker? imagePicker,
   Future<List<PlatformFile>> Function()? filePicker,
 }) async {
+  if (kIsWeb) {
+    final picked = await pickImageViaWebInput(_imageExtensions);
+    if (picked == null) return null;
+
+    _contentTypeFor(picked.name);
+    final compressed = await compressPhotoBytes(picked.bytes);
+    return _checked(compressed, 'image/jpeg');
+  }
+
   if (_isMobile) {
     final picked = await (imagePicker ?? ImagePicker()).pickImage(
       source: ImageSource.gallery,
@@ -54,7 +64,8 @@ Future<PickedScreenshot?> pickReportScreenshot({
           ))();
   if (result.isEmpty) return null;
   final file = result.first;
-  return _checked(await file.readAsBytes(), _contentTypeFor(file.name));
+  final rawBytes = await file.readAsBytes();
+  return _checked(rawBytes, _contentTypeFor(file.name));
 }
 
 PickedScreenshot _checked(Uint8List bytes, String contentType) {

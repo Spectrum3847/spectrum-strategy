@@ -1,15 +1,23 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _kThemeModeKey = 'app_theme_mode';
 const _kLiquidGlassKey = 'app_liquid_glass';
 
+bool _platformDefaultLiquidGlass() =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
 class ThemeController extends ChangeNotifier {
-  ThemeController();
+  ThemeController({bool? liquidGlassDefault})
+    : _liquidGlassDefault = liquidGlassDefault ?? _platformDefaultLiquidGlass();
+
+  final bool _liquidGlassDefault;
 
   Future<void>? _bootstrapFuture;
   ThemeMode _themeMode = ThemeMode.system;
-  bool _liquidGlass = false;
+  late bool _liquidGlass = _liquidGlassDefault;
 
   ThemeMode get themeMode => _themeMode;
 
@@ -33,7 +41,7 @@ class ThemeController extends ChangeNotifier {
       (mode) => mode.name == stored,
       orElse: () => ThemeMode.system,
     );
-    _liquidGlass = prefs.getBool(_kLiquidGlassKey) ?? false;
+    _liquidGlass = prefs.getBool(_kLiquidGlassKey) ?? _liquidGlassDefault;
     notifyListeners();
   }
 

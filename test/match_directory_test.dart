@@ -326,7 +326,7 @@ void main() {
     expect((await directory.listMatches()).single.eventName, 'BBBB');
   });
 
-  group('concurrent summary writes (PR #1506 review finding)', () {
+  group('concurrent summary writes', () {
     test('a listMatches racing a saveMatch does not lose the save', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final directory = SharedPreferencesMatchDirectory();
@@ -417,7 +417,7 @@ void main() {
     },
   );
 
-  group('legacy whole-directory blob migration (#1478 item 3)', () {
+  group('legacy whole-directory blob migration', () {
     test(
       'copies every board into its own key and drops the legacy keys',
       () async {

@@ -251,7 +251,7 @@ void main() {
     return roles;
   }
 
-  testWidgets('a lead can fill in and save the post-match table (#1843)', (
+  testWidgets('a lead can fill in and save the post-match table', (
     tester,
   ) async {
     final eventController = await _loadedEventController();
@@ -322,9 +322,7 @@ void main() {
     expect(find.byIcon(Icons.save_outlined), findsNothing);
   });
 
-  testWidgets('a scouter cannot edit the post-match table (#2003)', (
-    tester,
-  ) async {
+  testWidgets('a scouter cannot edit the post-match table', (tester) async {
     final eventController = await _loadedEventController();
     await eventController.setMyTeamNumber(3847);
     final scouting = await _seed(const <ScoutEntry>[]);
@@ -351,8 +349,7 @@ void main() {
   });
 
   testWidgets(
-    'pre-match and opponents sit side by side with post-match at the far '
-    'right (#2003)',
+    'pre-match and opponents sit side by side with post-match at the far right',
     (tester) async {
       final eventController = await _loadedEventController();
       await eventController.setMyTeamNumber(3847);
@@ -387,7 +384,7 @@ void main() {
     },
   );
 
-  testWidgets('a long computed cell value wraps instead of clipping (#2003)', (
+  testWidgets('a long computed cell value wraps instead of clipping', (
     tester,
   ) async {
     final eventController = await _loadedEventController();

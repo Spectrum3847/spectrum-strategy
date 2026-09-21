@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": { "test": "node --test", "deploy": "pnpm dlx wrangler@latest deploy", "dev": "pnpm dlx wrangler@latest dev" },
   "engines": { "node": "24" },
-  "packageManager": "pnpm@12.4.2",
+  "packageManager": "pnpm@12.5.1",
   "private": true
 }

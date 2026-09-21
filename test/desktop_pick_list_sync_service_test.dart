@@ -237,7 +237,7 @@ void main() {
   );
 
   test(
-    'a delete during a poll fetch is not resurrected by that poll (#1511)',
+    'a delete during a poll fetch is not resurrected by that poll',
     () async {
       final raced = PickList(
         id: 'l-raced',
@@ -302,7 +302,7 @@ void main() {
   );
 
   test(
-    'a push during a full-sync fetch is not discarded by that poll (#1511)',
+    'a push during a full-sync fetch is not discarded by that poll',
     () async {
       final pushed = PickList(
         id: 'l-pushed',
@@ -343,7 +343,7 @@ void main() {
   );
 
   test(
-    'a delete still in flight when a poll starts is not resurrected (#1511)',
+    'a delete still in flight when a poll starts is not resurrected',
     () async {
       final raced = PickList(
         id: 'l-raced',
@@ -408,7 +408,7 @@ void main() {
   );
 
   test(
-    'a push still in flight when a full sync starts is not discarded (#1511)',
+    'a push still in flight when a full sync starts is not discarded',
     () async {
       final pushed = PickList(
         id: 'l-pushed',
@@ -499,66 +499,65 @@ void main() {
       );
     },
   );
-  test('a poll never overlaps another, so no snapshot can arrive out of order '
-      '(#1511)', () async {
-    final gate = Completer<void>();
-    var queries = 0;
-    final service = DesktopPickListSyncService(
-      authService: _signedInAuth(),
-      firestore: _firestore(
-        MockClient((request) async {
-          queries++;
-          await gate.future;
-          return request.url.path.endsWith(':runQuery')
-              ? http.Response(jsonEncode(<dynamic>[]), 200)
-              : http.Response(jsonEncode({'documents': <dynamic>[]}), 200);
-        }),
-      ),
-      pollInterval: const Duration(milliseconds: 5),
-      pendingPushQueue: FakePendingPushQueue(),
-    );
-
-    await service.initialize();
-
-    await Future<void>.delayed(const Duration(milliseconds: 60));
-    expect(queries, 1);
-
-    gate.complete();
-    await Future<void>.delayed(Duration.zero);
-    await service.dispose();
-  });
   test(
-    'a fetch open at sign-out does not emit the previous session (#1600)',
+    'a poll never overlaps another, so no snapshot can arrive out of order',
     () async {
-      final auth = _signedInAuth();
       final gate = Completer<void>();
+      var queries = 0;
       final service = DesktopPickListSyncService(
-        authService: auth,
+        authService: _signedInAuth(),
         firestore: _firestore(
           MockClient((request) async {
+            queries++;
             await gate.future;
-            return http.Response(
-              jsonEncode({
-                'documents': [jsonDecode(_doc(list, serverTs: list.updatedAt))],
-              }),
-              200,
-            );
+            return request.url.path.endsWith(':runQuery')
+                ? http.Response(jsonEncode(<dynamic>[]), 200)
+                : http.Response(jsonEncode({'documents': <dynamic>[]}), 200);
           }),
         ),
+        pollInterval: const Duration(milliseconds: 5),
         pendingPushQueue: FakePendingPushQueue(),
       );
 
-      final snapshots = <List<PickList>>[];
-      final sub = service.remoteListsStream.listen(snapshots.add);
       await service.initialize();
-      await Future<void>.delayed(Duration.zero);
-      await auth.signOut();
-      gate.complete();
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      await sub.cancel();
 
-      expect(snapshots.expand((e) => e), isEmpty);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(queries, 1);
+
+      gate.complete();
+      await Future<void>.delayed(Duration.zero);
       await service.dispose();
     },
   );
+  test('a fetch open at sign-out does not emit the previous session', () async {
+    final auth = _signedInAuth();
+    final gate = Completer<void>();
+    final service = DesktopPickListSyncService(
+      authService: auth,
+      firestore: _firestore(
+        MockClient((request) async {
+          await gate.future;
+          return http.Response(
+            jsonEncode({
+              'documents': [jsonDecode(_doc(list, serverTs: list.updatedAt))],
+            }),
+            200,
+          );
+        }),
+      ),
+      pendingPushQueue: FakePendingPushQueue(),
+    );
+
+    final snapshots = <List<PickList>>[];
+    final sub = service.remoteListsStream.listen(snapshots.add);
+    await service.initialize();
+    await Future<void>.delayed(Duration.zero);
+    await auth.signOut();
+    gate.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await sub.cancel();
+
+    expect(snapshots.expand((e) => e), isEmpty);
+    await service.dispose();
+  });
 }

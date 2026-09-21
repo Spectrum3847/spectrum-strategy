@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:spectrumstrategy/src/models/match_forecast.dart';
 import 'package:spectrumstrategy/src/scouting/models/scout_entry.dart';
 import 'package:spectrumstrategy/src/scouting/state/scout_config_controller.dart';
 import 'package:spectrumstrategy/src/scouting/state/scouting_controller.dart';
 import 'package:spectrumstrategy/src/state/event_controller.dart';
+import 'package:spectrumstrategy/src/theme/strategy_palette.dart';
 import 'package:spectrumstrategy/src/ui/match_prediction_view.dart';
 import 'package:statbotics_client/statbotics_client.dart';
+import 'package:tba_client/tba_client.dart';
 
+import 'support/fake_match13_ratings_service.dart';
 import 'support/fake_scout_config_service.dart';
 import 'support/fake_scouting_storage.dart';
 
@@ -60,8 +64,27 @@ class _FakeStatboticsClient extends StatboticsClient {
   }
 }
 
-Future<EventController> _loadedEventController() async {
-  final controller = EventController(client: _FakeStatboticsClient());
+class _ForecastTbaClient extends TbaClient {
+  _ForecastTbaClient(this.predictions)
+    : super(config: InMemoryTbaConfig('test-key'));
+
+  final Map<String, TbaMatchPrediction> predictions;
+
+  @override
+  Future<Map<String, TbaMatchPrediction>> getEventPredictions(
+    String eventKey,
+  ) async => predictions;
+}
+
+Future<EventController> _loadedEventController({
+  TbaClient? tbaClient,
+  FakeMatch13RatingsService? match13,
+}) async {
+  final controller = EventController(
+    client: _FakeStatboticsClient(),
+    tbaClient: tbaClient,
+    match13: match13,
+  );
   await controller.setEventKey('2026test');
   return controller;
 }
@@ -183,4 +206,115 @@ void main() {
       expect(find.textContaining('No qualification match 99'), findsOneWidget);
     },
   );
+
+  testWidgets('loading a match shows both outside forecasts', (tester) async {
+    final match13 =
+        FakeMatch13RatingsService(<String, Map<int, StatboticsEpa>?>{})
+          ..forecasts = <String, Map<String, MatchForecast>?>{
+            '2026test': <String, MatchForecast>{
+              '2026test_qm1': const MatchForecast(
+                matchKey: '2026test_qm1',
+                source: MatchForecastSource.match13,
+                redScore: 104,
+                blueScore: 88,
+                redWinProbability: 0.62,
+              ),
+            },
+          };
+    await tester.pumpWidget(
+      _host(
+        eventController: await _loadedEventController(
+          tbaClient: _ForecastTbaClient(<String, TbaMatchPrediction>{
+            '2026test_qm1': const TbaMatchPrediction(
+              matchKey: '2026test_qm1',
+              redScore: 120,
+              blueScore: 95,
+              winningAlliance: 'red',
+              probability: 0.8,
+            ),
+          }),
+          match13: match13,
+        ),
+        scoutingController: await _seed(const <ScoutEntry>[]),
+        configController: await _config(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Outside forecasts'), findsNothing);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Match number'), '1');
+    await tester.tap(find.text('Load match'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Outside forecasts'), findsOneWidget);
+    expect(find.text('TBA'), findsOneWidget);
+    expect(find.text('match13'), findsOneWidget);
+    expect(find.textContaining('Red 80%'), findsOneWidget);
+    expect(find.textContaining('Red 62%'), findsOneWidget);
+
+    final redSegments = find.byWidgetPredicate(
+      (widget) =>
+          widget is ColoredBox && widget.color == StrategyPalette.allianceRed,
+    );
+    expect(redSegments, findsNWidgets(2));
+    final size = tester.getSize(redSegments.first);
+    expect(size.height, 6);
+    expect(size.width, greaterThan(0));
+  });
+
+  testWidgets('a source with no forecast for the match says so', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        eventController: await _loadedEventController(
+          tbaClient: _ForecastTbaClient(const <String, TbaMatchPrediction>{}),
+        ),
+        scoutingController: await _seed(const <ScoutEntry>[]),
+        configController: await _config(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Match number'), '1');
+    await tester.tap(find.text('Load match'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No forecast for this match.'), findsOneWidget);
+    expect(find.text('Could not be reached.'), findsOneWidget);
+  });
+
+  testWidgets('editing a team by hand drops the loaded match forecasts', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        eventController: await _loadedEventController(
+          tbaClient: _ForecastTbaClient(<String, TbaMatchPrediction>{
+            '2026test_qm1': const TbaMatchPrediction(
+              matchKey: '2026test_qm1',
+              redScore: 120,
+              blueScore: 95,
+              winningAlliance: 'red',
+              probability: 0.8,
+            ),
+          }),
+        ),
+        scoutingController: await _seed(const <ScoutEntry>[]),
+        configController: await _config(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Match number'), '1');
+    await tester.tap(find.text('Load match'));
+    await tester.pumpAndSettle();
+    expect(find.text('Outside forecasts'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).at(1), '9999');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Outside forecasts'), findsNothing);
+  });
 }

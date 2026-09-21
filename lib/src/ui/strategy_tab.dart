@@ -12,6 +12,7 @@ import '../services/team_avatar_service.dart';
 import '../state/event_controller.dart';
 import '../state/failed_write_tracker.dart';
 import '../state/strategy_controller.dart';
+import '../services/analytics_service.dart';
 import '../services/board_event_scope.dart';
 import '../theme/strategy_palette.dart';
 import '../widgets/glass_modal.dart';
@@ -25,12 +26,14 @@ class StrategyTab extends StatefulWidget {
     required this.controller,
     required this.eventController,
     this.teamAvatarService,
+    this.analytics,
     super.key,
   });
 
   final StrategyController controller;
   final EventController eventController;
   final TeamAvatarService? teamAvatarService;
+  final AnalyticsService? analytics;
 
   @override
   State<StrategyTab> createState() => StrategyTabState();
@@ -195,7 +198,10 @@ class StrategyTabState extends State<StrategyTab> {
         session: controller.session,
       );
       if (!mounted) return;
-      if (message.isNotEmpty) _showExportSnack(message);
+      if (message.isNotEmpty) {
+        widget.analytics?.capture('strategy_board_shared');
+        _showExportSnack(message);
+      }
     } catch (e) {
       if (!mounted) return;
       _showExportSnack('Could not share the board: $e');
@@ -209,6 +215,7 @@ class StrategyTabState extends State<StrategyTab> {
         session: controller.session,
       );
       if (!mounted) return;
+      widget.analytics?.capture('strategy_board_image_exported');
       _showExportSnack(result.savedMessage);
     } catch (e) {
       if (!mounted) return;
