@@ -57,14 +57,8 @@ alias/
 .impeccable/critique/
 
 **/.pnpm-store/
-scripts/accuracy-cron/node_modules/
-scripts/sheets-export-cron/node_modules/
 
 .claude/worktrees/
-scripts/report-cron/node_modules/
-scripts/usage-cron/node_modules/
-scripts/shift-cron/node_modules/
-scripts/schedule-mirror-cron/node_modules
 scripts/firebase-deploy/node_modules/
 
 .mimocode/

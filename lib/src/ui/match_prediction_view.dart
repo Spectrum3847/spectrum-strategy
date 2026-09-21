@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../models/match_forecast.dart';
 import '../scouting/services/match_prediction_stats.dart';
 import '../scouting/state/scout_config_controller.dart';
 import '../scouting/state/scouting_controller.dart';
@@ -32,6 +35,8 @@ class _MatchPredictionViewState extends State<MatchPredictionView> {
   final _blueControllers = List.generate(3, (_) => TextEditingController());
   String? _matchLookupError;
 
+  String? _loadedMatchKey;
+
   @override
   void initState() {
     super.initState();
@@ -55,7 +60,7 @@ class _MatchPredictionViewState extends State<MatchPredictionView> {
     super.dispose();
   }
 
-  void _onTeamsChanged() => setState(() {});
+  void _onTeamsChanged() => setState(() => _loadedMatchKey = null);
 
   List<int?> get _redTeamNumbers =>
       _redControllers.map(_parseTeam).toList(growable: false);
@@ -89,7 +94,10 @@ class _MatchPredictionViewState extends State<MatchPredictionView> {
         _redControllers[i].text = '${match.redTeams[i]}';
         _blueControllers[i].text = '${match.blueTeams[i]}';
       }
+
+      _loadedMatchKey = match.key;
     });
+    unawaited(widget.eventController.loadForecasts());
   }
 
   @override
@@ -141,6 +149,17 @@ class _MatchPredictionViewState extends State<MatchPredictionView> {
                   onLoad: _loadFromMatchNumber,
                   error: _matchLookupError,
                 ),
+                if (_loadedMatchKey != null) ...[
+                  const SizedBox(height: 16),
+                  _ForecastCard(
+                    forecasts: widget.eventController.forecastsFor(
+                      _loadedMatchKey!,
+                    ),
+                    loading: widget.eventController.forecastsLoading,
+                    sourcesMissing:
+                        widget.eventController.forecastSourcesMissing,
+                  ),
+                ],
                 const SizedBox(height: 16),
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -189,6 +208,180 @@ class _MatchPredictionViewState extends State<MatchPredictionView> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ForecastCard extends StatelessWidget {
+  const _ForecastCard({
+    required this.forecasts,
+    required this.loading,
+    required this.sourcesMissing,
+  });
+
+  final List<MatchForecast> forecasts;
+  final bool loading;
+  final Set<String> sourcesMissing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: StrategyPalette.borderOf(context)),
+        borderRadius: const BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('Outside forecasts', style: theme.textTheme.titleSmall),
+              const Spacer(),
+              if (loading)
+                const SizedBox(
+                  height: 14,
+                  width: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Predicted score and win probability from models that never saw '
+            'a scout entry, next to the scouted total below.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: StrategyPalette.mutedTextOf(context),
+            ),
+          ),
+          for (final source in MatchForecastSource.values) ...[
+            const SizedBox(height: 12),
+            _ForecastRow(
+              source: source,
+              forecast: forecasts.where((f) => f.source == source).firstOrNull,
+              unreachable: sourcesMissing.contains(source.label),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ForecastRow extends StatelessWidget {
+  const _ForecastRow({
+    required this.source,
+    required this.forecast,
+    required this.unreachable,
+  });
+
+  final MatchForecastSource source;
+  final MatchForecast? forecast;
+  final bool unreachable;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = StrategyPalette.mutedTextOf(context);
+    final value = forecast;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            SizedBox(
+              width: 72,
+              child: Text(source.label, style: theme.textTheme.labelLarge),
+            ),
+            if (value == null)
+              Expanded(
+                child: Text(
+                  unreachable
+                      ? 'Could not be reached.'
+                      : 'No forecast for this match.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                ),
+              )
+            else
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${value.redScore.round()}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: StrategyPalette.allianceRed,
+                        ),
+                      ),
+                      TextSpan(
+                        text: '  -  ',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: muted,
+                        ),
+                      ),
+                      TextSpan(
+                        text: '${value.blueScore.round()}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: StrategyPalette.allianceBlue,
+                        ),
+                      ),
+                      TextSpan(
+                        text:
+                            '   ${value.redFavored ? 'Red' : 'Blue'} '
+                            '${(value.favoredWinProbability * 100).round()}%',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (value != null) ...[
+          const SizedBox(height: 6),
+          _ProbabilityBar(redWinProbability: value.redWinProbability),
+        ],
+      ],
+    );
+  }
+}
+
+class _ProbabilityBar extends StatelessWidget {
+  const _ProbabilityBar({required this.redWinProbability});
+
+  final double redWinProbability;
+
+  @override
+  Widget build(BuildContext context) {
+    final redPercent = (redWinProbability * 100).round();
+    return Semantics(
+      label: 'Red win probability $redPercent percent',
+      child: ClipRRect(
+        borderRadius: const BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+        child: SizedBox(
+          height: 6,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: redPercent.clamp(1, 99),
+                child: const ColoredBox(color: StrategyPalette.allianceRed),
+              ),
+              Expanded(
+                flex: (100 - redPercent).clamp(1, 99),
+                child: const ColoredBox(color: StrategyPalette.allianceBlue),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

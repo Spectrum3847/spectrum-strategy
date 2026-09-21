@@ -240,7 +240,7 @@ void main() {
     });
   });
 
-  group('addNames (#1410)', () {
+  group('addNames', () {
     test('appends a pasted list in one push, not one per name', () async {
       await controller.addColumn('Defense');
       final key = controller.assignments.columns.single.key;

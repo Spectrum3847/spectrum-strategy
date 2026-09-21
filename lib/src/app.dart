@@ -15,6 +15,7 @@ import 'scouting/state/shift_trade_controller.dart';
 import 'scouting/state/scouting_controller.dart';
 import 'services/assistant/assistant_service.dart';
 import 'services/statbotics/team_history_service.dart';
+import 'services/analytics_service.dart';
 import 'services/issue_report_service.dart';
 import 'services/telemetry_service.dart';
 import 'services/spectrum_auth_service.dart';
@@ -70,6 +71,7 @@ class StrategyApp extends StatefulWidget {
     this.accuracyMappingService,
     this.tourService,
     this.telemetryService,
+    this.analyticsService,
     this.trexAssignmentsController,
     this.trexTeamListController,
     this.trexTraitReportController,
@@ -106,6 +108,8 @@ class StrategyApp extends StatefulWidget {
   final AccuracyMappingService? accuracyMappingService;
   final TourService? tourService;
   final TelemetryService? telemetryService;
+
+  final AnalyticsService? analyticsService;
 
   final TRexAssignmentsController? trexAssignmentsController;
 
@@ -250,6 +254,7 @@ class _StrategyAppState extends State<StrategyApp> {
             accuracyMappingService: widget.accuracyMappingService,
             tourService: widget.tourService,
             telemetryService: widget.telemetryService,
+            analyticsService: widget.analyticsService,
             trexAssignmentsController: widget.trexAssignmentsController,
             trexTeamListController: widget.trexTeamListController,
             trexTraitReportController: widget.trexTraitReportController,

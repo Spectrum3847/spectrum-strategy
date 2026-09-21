@@ -202,7 +202,7 @@ void main() {
   );
 
   test(
-    'a delete during a poll fetch is not resurrected by that poll (#1511)',
+    'a delete during a poll fetch is not resurrected by that poll',
     () async {
       final board = _board('b-raced', DateTime.utc(2026, 7, 8));
 
@@ -262,7 +262,7 @@ void main() {
   );
 
   test(
-    'a push during a full-sync fetch is not discarded by that poll (#1511)',
+    'a push during a full-sync fetch is not discarded by that poll',
     () async {
       final board = _board('b-pushed', DateTime.utc(2026, 7, 8));
       final gate = Completer<void>();
@@ -344,82 +344,81 @@ void main() {
       );
     },
   );
-  test('a poll never overlaps another, so no snapshot can arrive out of order '
-      '(#1511)', () async {
-    final gate = Completer<void>();
-    var queries = 0;
-    final service = DesktopStrategyBoardSyncService(
-      authService: _signedInAuth(),
-      firestore: _firestore(
-        MockClient((request) async {
-          queries++;
-          await gate.future;
-          return request.url.path.endsWith(':runQuery')
-              ? http.Response(jsonEncode(<dynamic>[]), 200)
-              : http.Response(jsonEncode({'documents': <dynamic>[]}), 200);
-        }),
-      ),
-      pollInterval: const Duration(milliseconds: 5),
-      pendingPushQueue: FakePendingPushQueue(),
-    );
-
-    await service.initialize();
-
-    await Future<void>.delayed(const Duration(milliseconds: 60));
-    expect(queries, 1);
-
-    gate.complete();
-    await Future<void>.delayed(Duration.zero);
-    await service.dispose();
-  });
   test(
-    'a fetch open at sign-out does not emit the previous session (#1600)',
+    'a poll never overlaps another, so no snapshot can arrive out of order',
     () async {
-      final board = _board('b-prev', DateTime.utc(2026, 3, 2));
-      final auth = _signedInAuth();
       final gate = Completer<void>();
+      var queries = 0;
       final service = DesktopStrategyBoardSyncService(
-        authService: auth,
+        authService: _signedInAuth(),
         firestore: _firestore(
           MockClient((request) async {
+            queries++;
             await gate.future;
             return request.url.path.endsWith(':runQuery')
-                ? http.Response(
-                    jsonEncode([
-                      {
-                        'document': jsonDecode(
-                          _doc(board, serverTs: board.updatedAt),
-                        ),
-                      },
-                    ]),
-                    200,
-                  )
-                : http.Response(
-                    jsonEncode({
-                      'documents': [
-                        jsonDecode(_doc(board, serverTs: board.updatedAt)),
-                      ],
-                    }),
-                    200,
-                  );
+                ? http.Response(jsonEncode(<dynamic>[]), 200)
+                : http.Response(jsonEncode({'documents': <dynamic>[]}), 200);
           }),
         ),
+        pollInterval: const Duration(milliseconds: 5),
         pendingPushQueue: FakePendingPushQueue(),
       );
 
-      final emissions = <List<StrategySession>>[];
-      final sub = service.remoteBoardsStream.listen(emissions.add);
       await service.initialize();
-      await Future<void>.delayed(Duration.zero);
-      await auth.signOut();
-      gate.complete();
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      await sub.cancel();
 
-      expect(emissions.expand((e) => e), isEmpty);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(queries, 1);
+
+      gate.complete();
+      await Future<void>.delayed(Duration.zero);
       await service.dispose();
     },
   );
+  test('a fetch open at sign-out does not emit the previous session', () async {
+    final board = _board('b-prev', DateTime.utc(2026, 3, 2));
+    final auth = _signedInAuth();
+    final gate = Completer<void>();
+    final service = DesktopStrategyBoardSyncService(
+      authService: auth,
+      firestore: _firestore(
+        MockClient((request) async {
+          await gate.future;
+          return request.url.path.endsWith(':runQuery')
+              ? http.Response(
+                  jsonEncode([
+                    {
+                      'document': jsonDecode(
+                        _doc(board, serverTs: board.updatedAt),
+                      ),
+                    },
+                  ]),
+                  200,
+                )
+              : http.Response(
+                  jsonEncode({
+                    'documents': [
+                      jsonDecode(_doc(board, serverTs: board.updatedAt)),
+                    ],
+                  }),
+                  200,
+                );
+        }),
+      ),
+      pendingPushQueue: FakePendingPushQueue(),
+    );
+
+    final emissions = <List<StrategySession>>[];
+    final sub = service.remoteBoardsStream.listen(emissions.add);
+    await service.initialize();
+    await Future<void>.delayed(Duration.zero);
+    await auth.signOut();
+    gate.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await sub.cancel();
+
+    expect(emissions.expand((e) => e), isEmpty);
+    await service.dispose();
+  });
   test('losing access keeps the boards already polled', () async {
     final board = _board('b-noaccess', DateTime.utc(2026, 3, 2));
     final service = DesktopStrategyBoardSyncService(

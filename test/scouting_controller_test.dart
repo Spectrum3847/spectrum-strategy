@@ -7,6 +7,7 @@ import 'package:spectrumstrategy/src/scouting/services/scouting_sync_service.dar
 import 'package:spectrumstrategy/src/scouting/state/scouting_controller.dart';
 import 'package:spectrumstrategy/src/theme/strategy_palette.dart';
 
+import 'support/fake_analytics_service.dart';
 import 'support/fake_scouting_storage.dart';
 import 'support/fake_scouting_sync_service.dart';
 import 'support/laggy_scouting_storage.dart';
@@ -39,6 +40,55 @@ class _FlakyBatchScoutingStorage extends FakeScoutingStorage {
       throw StateError('simulated batch storage failure');
     }
     await super.saveEntries(entries);
+  }
+}
+
+class _RacyScoutingSyncService implements ScoutingSyncService {
+  final StreamController<ScoutingSyncStatus> _statusController =
+      StreamController<ScoutingSyncStatus>.broadcast();
+  final StreamController<List<ScoutEntry>> _remoteController =
+      StreamController<List<ScoutEntry>>.broadcast();
+  ScoutingSyncStatus _status = const ScoutingSyncStatus(
+    state: ScoutingSyncState.synced,
+  );
+  final Map<int, Completer<ScoutingSyncStatus?>> _pending =
+      <int, Completer<ScoutingSyncStatus?>>{};
+
+  @override
+  Stream<ScoutingSyncStatus> get statusStream => _statusController.stream;
+
+  @override
+  ScoutingSyncStatus get status => _status;
+
+  @override
+  Stream<List<ScoutEntry>> get remoteEntriesStream => _remoteController.stream;
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<void> syncNow() async {}
+
+  @override
+  Future<void> dispose() async {
+    await _statusController.close();
+    await _remoteController.close();
+  }
+
+  @override
+  Future<ScoutingSyncStatus?> push(ScoutEntry entry) {
+    final completer = Completer<ScoutingSyncStatus?>();
+    _pending[entry.teamNumber] = completer;
+    return completer.future;
+  }
+
+  @override
+  Future<ScoutingSyncStatus?> delete(ScoutEntry entry) async => null;
+
+  void resolve(int teamNumber, ScoutingSyncStatus outcome) {
+    _status = outcome;
+    _statusController.add(outcome);
+    _pending.remove(teamNumber)!.complete(outcome);
   }
 }
 
@@ -302,6 +352,96 @@ void main() {
       expect(storage.savedEntries.last.notes, 'second');
     },
   );
+
+  group('analytics', () {
+    test('a successful save reaches scout_entry_saved', () async {
+      final analytics = FakeAnalyticsService();
+      final controller = ScoutingController(
+        storage: FakeScoutingStorage(),
+        analytics: analytics,
+      );
+      await controller.bootstrap();
+
+      await controller.saveEntry(
+        ScoutEntry(matchId: 'match-1', teamNumber: 3847),
+      );
+
+      expect(analytics.events, contains('scout_entry_saved'));
+    });
+
+    test('a synced push reaches sync_succeeded', () async {
+      final sync = FakeScoutingSyncService();
+      final analytics = FakeAnalyticsService();
+      final controller = ScoutingController(
+        storage: FakeScoutingStorage(),
+        syncService: sync,
+        analytics: analytics,
+      );
+      await controller.bootstrap();
+
+      await controller.saveEntry(
+        ScoutEntry(matchId: 'match-1', teamNumber: 3847),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(analytics.events, contains('sync_succeeded'));
+      expect(analytics.events, isNot(contains('sync_failed')));
+    });
+
+    test('a rejected push reaches sync_failed', () async {
+      final sync = FakeScoutingSyncService()..simulateRejection = true;
+      final analytics = FakeAnalyticsService();
+      final controller = ScoutingController(
+        storage: FakeScoutingStorage(),
+        syncService: sync,
+        analytics: analytics,
+      );
+      await controller.bootstrap();
+
+      await controller.saveEntry(
+        ScoutEntry(matchId: 'match-1', teamNumber: 3847),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(analytics.events, contains('sync_failed'));
+      expect(analytics.events, isNot(contains('sync_succeeded')));
+    });
+
+    test('a race between two pushes attributes each outcome by call, not by '
+        "re-reading the sync service's shared status afterward", () async {
+      final sync = _RacyScoutingSyncService();
+      final analytics = FakeAnalyticsService();
+      final controller = ScoutingController(
+        storage: FakeScoutingStorage(),
+        syncService: sync,
+        analytics: analytics,
+      );
+      await controller.bootstrap();
+
+      await controller.saveEntry(
+        ScoutEntry(matchId: 'match-1', teamNumber: 971),
+      );
+      await controller.saveEntry(
+        ScoutEntry(matchId: 'match-1', teamNumber: 254),
+      );
+
+      sync.resolve(
+        971,
+        const ScoutingSyncStatus(
+          state: ScoutingSyncState.rejected,
+          error: 'denied',
+        ),
+      );
+      sync.resolve(
+        254,
+        const ScoutingSyncStatus(state: ScoutingSyncState.synced),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(analytics.events.where((e) => e == 'sync_failed').length, 1);
+      expect(analytics.events.where((e) => e == 'sync_succeeded').length, 1);
+    });
+  });
 
   test('saveEntry mirrors the snapshot to the sync service', () async {
     final sync = FakeScoutingSyncService();

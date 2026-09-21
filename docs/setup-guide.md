@@ -57,7 +57,7 @@ Before you open a pull request, three checks need to pass. Running them
 means installing the Flutter SDK, which gives you `flutter run` too, so you
 can see the app itself and not just the checks.
 
-The project pins Flutter 3.47.3 and Dart 3.13.3. Install that version, not
+The project pins Flutter 3.47.5 and Dart 3.13.4. Install that version, not
 whatever is newest: the project will not build on an older SDK, and a newer
 one can format code differently and fail the format check.
 

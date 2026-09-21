@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../services/analytics_service.dart';
 import '../../state/failed_write_tracker.dart';
 import '../models/accuracy_alert.dart';
 import '../models/scout_entry.dart';
@@ -16,11 +17,15 @@ class ScoutingController extends ChangeNotifier {
     ScoutingStorage? storage,
     this._syncService,
     this._alertService,
-  }) : _storage = storage ?? SharedPreferencesScoutingStorage();
+    AnalyticsService? analytics,
+  }) : _storage = storage ?? SharedPreferencesScoutingStorage(),
+       _analytics = analytics ?? const NoopAnalyticsService();
 
   final ScoutingStorage _storage;
   final ScoutingSyncService? _syncService;
   final AccuracyAlertService? _alertService;
+
+  final AnalyticsService _analytics;
   Future<void>? _bootstrapFuture;
   Future<void> _saveQueue = Future<void>.value();
   final List<ScoutEntry> _entries = <ScoutEntry>[];
@@ -158,6 +163,7 @@ class ScoutingController extends ChangeNotifier {
       );
       return false;
     }
+    _analytics.capture('scout_entry_saved');
     final sync = _syncService;
     if (sync != null) {
       unawaited(sync.push(snapshot).then(_recordSyncOutcome));
@@ -223,9 +229,11 @@ class ScoutingController extends ChangeNotifier {
     if (status == null) return;
     if (status.state == ScoutingSyncState.rejected) {
       failedWrites.recordFailure();
+      _analytics.capture('sync_failed');
       notifyListeners();
     } else if (status.state == ScoutingSyncState.synced) {
       if (failedWrites.recordSuccess()) notifyListeners();
+      _analytics.capture('sync_succeeded');
     }
   }
 

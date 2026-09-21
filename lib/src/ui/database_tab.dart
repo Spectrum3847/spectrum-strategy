@@ -121,6 +121,8 @@ int compareEntriesByMatch(
 class _DatabaseTabState extends State<DatabaseTab> {
   final TextEditingController _teamFilter = TextEditingController();
   final TextEditingController _matchFilter = TextEditingController();
+
+  final TextEditingController _search = TextEditingController();
   bool _isRefreshing = false;
   bool _isExporting = false;
   EntryOrder _order = EntryOrder.spreadsheet;
@@ -234,7 +236,35 @@ class _DatabaseTabState extends State<DatabaseTab> {
   void dispose() {
     _teamFilter.dispose();
     _matchFilter.dispose();
+    _search.dispose();
     super.dispose();
+  }
+
+  void _applySearch(String text) {
+    if (_search.text != text) _search.text = text;
+    final ({String team, String match}) parsed = parseDatabaseSearch(text);
+    _teamFilter.text = parsed.team;
+    _matchFilter.text = parsed.match;
+    setState(() {});
+  }
+
+  void _syncSearchFromFields() {
+    _search.text = databaseSearchText(
+      team: _teamFilter.text.trim(),
+      match: _matchFilter.text.trim(),
+    );
+  }
+
+  void _clearTeamFilter() {
+    _teamFilter.clear();
+    _syncSearchFromFields();
+    setState(() {});
+  }
+
+  void _clearMatchFilter() {
+    _matchFilter.clear();
+    _syncSearchFromFields();
+    setState(() {});
   }
 
   List<ScoutEntry> _filtered(List<ScoutEntry> all) {
@@ -669,12 +699,19 @@ class _DatabaseTabState extends State<DatabaseTab> {
                   hasEvent: widget.eventController.hasEvent,
                   teamFilter: _teamFilter,
                   matchFilter: _matchFilter,
+                  searchFilter: _search,
+                  onSearchChanged: _applySearch,
+                  onClearTeamFilter: _clearTeamFilter,
+                  onClearMatchFilter: _clearMatchFilter,
                   syncStatus: syncStatus,
                   isRefreshing: _isRefreshing,
                   onRefresh: _refresh,
                   onExport: widget.canEditAnyEntry ? _exportCsv : null,
                   isExporting: _isExporting,
-                  onFilterChanged: () => setState(() {}),
+                  onFilterChanged: () {
+                    _syncSearchFromFields();
+                    setState(() {});
+                  },
                 ),
                 Expanded(child: _buildTableView(filtered, flags)),
               ],
@@ -686,6 +723,89 @@ class _DatabaseTabState extends State<DatabaseTab> {
   }
 }
 
+({String team, String match}) parseDatabaseSearch(String text) {
+  var team = '';
+  var match = '';
+  var matchPending = false;
+  for (final String raw in text.toLowerCase().split(RegExp(r'[\s,]+'))) {
+    final String token = raw.trim();
+    if (token.isEmpty) continue;
+    final String digits = token.replaceAll(RegExp(r'[^0-9]'), '');
+    final bool marksMatch =
+        token.startsWith('q') || token.startsWith('m') || token.startsWith('#');
+    if (marksMatch) {
+      match = digits;
+      matchPending = digits.isEmpty;
+      continue;
+    }
+    if (digits.isEmpty) continue;
+    if (matchPending) {
+      match = digits;
+      matchPending = false;
+    } else {
+      team = digits;
+    }
+  }
+  return (team: team, match: match);
+}
+
+String databaseSearchText({required String team, required String match}) {
+  return <String>[
+    if (team.isNotEmpty) team,
+    if (match.isNotEmpty) 'q$match',
+  ].join(' ');
+}
+
+({String label, IconData icon, Color color}) databaseSyncDisplay(
+  BuildContext context,
+  ScoutingSyncStatus status,
+) {
+  final ColorScheme colorScheme = Theme.of(context).colorScheme;
+  return switch (status.state) {
+    ScoutingSyncState.signedOut => (
+      label: 'Sign in to load the team database',
+      icon: Icons.cloud_off_rounded,
+      color: colorScheme.error,
+    ),
+    ScoutingSyncState.noAccess => (
+      label: 'No team access yet. Ask an admin to approve your account.',
+      icon: Icons.lock_outline_rounded,
+      color: colorScheme.error,
+    ),
+    ScoutingSyncState.syncing => (
+      label: 'Syncing...',
+      icon: Icons.sync_rounded,
+      color: colorScheme.primary,
+    ),
+    ScoutingSyncState.synced => (
+      label: status.lastSyncedAt != null
+          ? 'Last synced ${_formatSyncTime(status.lastSyncedAt!)}'
+          : 'Synced',
+      icon: Icons.cloud_done_rounded,
+      color: colorScheme.primary,
+    ),
+    ScoutingSyncState.offline => (
+      label: 'Offline, showing cached entries',
+      icon: Icons.cloud_off_rounded,
+      color: colorScheme.onSurfaceVariant,
+    ),
+    ScoutingSyncState.rejected => (
+      label: status.error != null
+          ? 'Not accepted: ${status.error}'
+          : 'Not accepted. The server rejected this write.',
+      icon: Icons.report_gmailerrorred_rounded,
+      color: colorScheme.error,
+    ),
+  };
+}
+
+String _formatSyncTime(DateTime dt) {
+  final DateTime local = dt.toLocal();
+  final String h = local.hour.toString().padLeft(2, '0');
+  final String m = local.minute.toString().padLeft(2, '0');
+  return 'at $h:$m';
+}
+
 class _FilterBar extends StatelessWidget {
   const _FilterBar({
     required this.order,
@@ -695,6 +815,10 @@ class _FilterBar extends StatelessWidget {
     required this.hasEvent,
     required this.teamFilter,
     required this.matchFilter,
+    required this.searchFilter,
+    required this.onSearchChanged,
+    required this.onClearTeamFilter,
+    required this.onClearMatchFilter,
     required this.syncStatus,
     required this.isRefreshing,
     required this.onRefresh,
@@ -713,6 +837,11 @@ class _FilterBar extends StatelessWidget {
 
   final TextEditingController teamFilter;
   final TextEditingController matchFilter;
+
+  final TextEditingController searchFilter;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onClearTeamFilter;
+  final VoidCallback onClearMatchFilter;
   final ScoutingSyncStatus syncStatus;
   final bool isRefreshing;
   final VoidCallback onRefresh;
@@ -720,6 +849,13 @@ class _FilterBar extends StatelessWidget {
   final VoidCallback? onExport;
   final bool isExporting;
   final VoidCallback onFilterChanged;
+
+  static const double _narrowFilterBreakpoint = 600;
+
+  bool get _syncIsQuiet =>
+      syncStatus.pendingWrites == 0 &&
+      (syncStatus.state == ScoutingSyncState.synced ||
+          syncStatus.state == ScoutingSyncState.syncing);
 
   @override
   Widget build(BuildContext context) {
@@ -729,43 +865,11 @@ class _FilterBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    _orderControl(context),
-                    if (hasEvent) _eventScopeControl(context),
-                    if (onExport != null)
-                      OutlinedButton.icon(
-                        onPressed: isExporting ? null : onExport,
-                        icon: isExporting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.file_download_outlined,
-                                size: 18,
-                              ),
-                        label: const Text('Export CSV'),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _buildFilterRow(context),
-                const SizedBox(height: 6),
-                _SyncStatusRow(status: syncStatus),
-              ],
-            ),
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) =>
+                constraints.maxWidth < _narrowFilterBreakpoint
+                ? _buildCompact(context)
+                : _buildFull(context),
           ),
           Divider(
             height: 1,
@@ -777,9 +881,105 @@ class _FilterBar extends StatelessWidget {
     );
   }
 
-  Widget _orderControl(BuildContext context) {
+  Widget _buildCompact(BuildContext context) {
+    final List<Widget> chips = _activeChips(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _searchField(context)),
+              _orderControl(context, compact: true),
+              if (hasEvent) _eventScopeControl(context, compact: true),
+              _overflowMenu(context),
+              if (_syncIsQuiet) _syncDot(context),
+            ],
+          ),
+          if (chips.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 4, 8, 4),
+              child: Wrap(spacing: 8, runSpacing: 4, children: chips),
+            ),
+          if (!_syncIsQuiet)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 4, 8, 6),
+              child: _SyncStatusRow(status: syncStatus),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFull(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _orderControl(context),
+              if (hasEvent) _eventScopeControl(context),
+              if (onExport != null)
+                OutlinedButton.icon(
+                  onPressed: isExporting ? null : onExport,
+                  icon: isExporting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.file_download_outlined, size: 18),
+                  label: const Text('Export CSV'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildFilterRow(context),
+          const SizedBox(height: 6),
+          _SyncStatusRow(status: syncStatus),
+        ],
+      ),
+    );
+  }
+
+  Widget _searchField(BuildContext context) {
+    return Semantics(
+      label: 'Filter by team or match',
+      child: TextField(
+        controller: searchFilter,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Team or q42',
+          prefixIcon: const Icon(Icons.search_rounded, size: 18),
+          suffixIcon: searchFilter.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  tooltip: 'Clear filter',
+                  onPressed: () => onSearchChanged(''),
+                ),
+          border: const OutlineInputBorder(),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ),
+        ),
+        onChanged: onSearchChanged,
+        onSubmitted: (_) => FocusScope.of(context).unfocus(),
+      ),
+    );
+  }
+
+  Widget _orderControl(BuildContext context, {bool compact = false}) {
     return GlassPopupMenuButton<EntryOrder>(
-      tooltip: 'Row order',
+      tooltip: compact ? 'Row order: ${entryOrderLabel(order)}' : 'Row order',
       initialValue: order,
       onSelected: onOrderChanged,
       itemBuilder: (BuildContext context) => <PopupMenuEntry<EntryOrder>>[
@@ -789,63 +989,149 @@ class _FilterBar extends StatelessWidget {
             child: Text(entryOrderLabel(value)),
           ),
       ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: compact
+          ? const _CompactControlIcon(Icons.swap_vert_rounded)
+          : Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
 
-        child: Text.rich(
-          TextSpan(
-            children: <InlineSpan>[
-              const WidgetSpan(
-                alignment: PlaceholderAlignment.middle,
-                child: Padding(
-                  padding: EdgeInsets.only(right: 4),
-                  child: Icon(Icons.swap_vert_rounded, size: 18),
+              child: Text.rich(
+                TextSpan(
+                  children: <InlineSpan>[
+                    const WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: EdgeInsets.only(right: 4),
+                        child: Icon(Icons.swap_vert_rounded, size: 18),
+                      ),
+                    ),
+                    TextSpan(text: entryOrderLabel(order)),
+                  ],
                 ),
+                style: Theme.of(context).textTheme.labelLarge,
               ),
-              TextSpan(text: entryOrderLabel(order)),
-            ],
-          ),
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
-      ),
+            ),
     );
   }
 
-  Widget _eventScopeControl(BuildContext context) {
+  Widget _eventScopeControl(BuildContext context, {bool compact = false}) {
+    final String scopeLabel = allEvents ? 'All events' : 'This event';
     return GlassPopupMenuButton<bool>(
-      tooltip: 'Events shown',
+      tooltip: compact ? 'Events shown: $scopeLabel' : 'Events shown',
       initialValue: allEvents,
       onSelected: onAllEventsChanged,
       itemBuilder: (BuildContext context) => const <PopupMenuEntry<bool>>[
         PopupMenuItem<bool>(value: false, child: Text('This event')),
         PopupMenuItem<bool>(value: true, child: Text('All events')),
       ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: compact
+          ? const _CompactControlIcon(Icons.event_note_rounded)
+          : Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
 
-        child: Text.rich(
-          TextSpan(
-            children: <InlineSpan>[
-              const WidgetSpan(
-                alignment: PlaceholderAlignment.middle,
-                child: Padding(
-                  padding: EdgeInsets.only(right: 4),
-                  child: Icon(Icons.event_note_rounded, size: 18),
+              child: Text.rich(
+                TextSpan(
+                  children: <InlineSpan>[
+                    const WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: EdgeInsets.only(right: 4),
+                        child: Icon(Icons.event_note_rounded, size: 18),
+                      ),
+                    ),
+                    TextSpan(text: scopeLabel),
+                  ],
                 ),
+                style: Theme.of(context).textTheme.labelLarge,
               ),
-              TextSpan(text: allEvents ? 'All events' : 'This event'),
-            ],
+            ),
+    );
+  }
+
+  Widget _overflowMenu(BuildContext context) {
+    final bool busy = isRefreshing || isExporting;
+    return GlassPopupMenuButton<String>(
+      tooltip: 'Database actions',
+      onSelected: (String value) {
+        if (value == 'refresh') {
+          onRefresh();
+        } else if (value == 'export') {
+          onExport?.call();
+        }
+      },
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'refresh',
+          enabled: !isRefreshing,
+          child: Text(isRefreshing ? 'Refreshing...' : 'Refresh from database'),
+        ),
+        if (onExport != null)
+          PopupMenuItem<String>(
+            value: 'export',
+            enabled: !isExporting,
+            child: Text(isExporting ? 'Exporting...' : 'Export CSV'),
           ),
-          style: Theme.of(context).textTheme.labelLarge,
+      ],
+      child: busy
+          ? const Padding(
+              padding: EdgeInsets.all(13),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : const _CompactControlIcon(Icons.more_vert_rounded),
+    );
+  }
+
+  Widget _syncDot(BuildContext context) {
+    final ({String label, IconData icon, Color color}) display =
+        databaseSyncDisplay(context, syncStatus);
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, right: 10),
+      child: Tooltip(
+        message: display.label,
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: display.color,
+            borderRadius: BorderRadius.circular(StrategyPalette.radiusSm),
+          ),
         ),
       ),
     );
   }
 
-  static const double _narrowFilterBreakpoint = 600;
+  List<Widget> _activeChips(BuildContext context) {
+    final String team = teamFilter.text.trim();
+    final String match = matchFilter.text.trim();
+    return <Widget>[
+      if (team.isNotEmpty) _chip('Team $team', onClearTeamFilter),
+      if (match.isNotEmpty) _chip('Match $match', onClearMatchFilter),
+      if (order != EntryOrder.spreadsheet)
+        _chip(
+          entryOrderLabel(order),
+          () => onOrderChanged(EntryOrder.spreadsheet),
+        ),
+      if (allEvents) _chip('All events', () => onAllEventsChanged(false)),
+    ];
+  }
+
+  Widget _chip(String label, VoidCallback onClear) {
+    return InputChip(
+      label: Text(label),
+      onDeleted: onClear,
+      deleteIcon: const Icon(Icons.close_rounded, size: 16),
+      deleteButtonTooltipMessage: 'Clear $label',
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(StrategyPalette.radiusSm),
+      ),
+    );
+  }
 
   Widget _buildFilterRow(BuildContext context) {
-    final teamField = TextField(
+    final TextField teamField = TextField(
       controller: teamFilter,
       keyboardType: TextInputType.number,
       textInputAction: TextInputAction.done,
@@ -859,7 +1145,7 @@ class _FilterBar extends StatelessWidget {
       onChanged: (_) => onFilterChanged(),
       onSubmitted: (_) => FocusScope.of(context).unfocus(),
     );
-    final matchField = TextField(
+    final TextField matchField = TextField(
       controller: matchFilter,
       keyboardType: TextInputType.number,
       textInputAction: TextInputAction.done,
@@ -873,7 +1159,7 @@ class _FilterBar extends StatelessWidget {
       onChanged: (_) => onFilterChanged(),
       onSubmitted: (_) => FocusScope.of(context).unfocus(),
     );
-    final refreshButton = IconButton(
+    final IconButton refreshButton = IconButton(
       icon: isRefreshing
           ? const SizedBox(
               width: 20,
@@ -885,34 +1171,28 @@ class _FilterBar extends StatelessWidget {
       onPressed: isRefreshing ? null : onRefresh,
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < _narrowFilterBreakpoint) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: teamField),
-                  const SizedBox(width: 8),
-                  refreshButton,
-                ],
-              ),
-              const SizedBox(height: 8),
-              matchField,
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: teamField),
-            const SizedBox(width: 8),
-            Expanded(child: matchField),
-            const SizedBox(width: 8),
-            refreshButton,
-          ],
-        );
-      },
+    return Row(
+      children: [
+        Expanded(child: teamField),
+        const SizedBox(width: 8),
+        Expanded(child: matchField),
+        const SizedBox(width: 8),
+        refreshButton,
+      ],
+    );
+  }
+}
+
+class _CompactControlIcon extends StatelessWidget {
+  const _CompactControlIcon(this.icon);
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(11),
+      child: Icon(icon, size: 22),
     );
   }
 }
@@ -924,55 +1204,21 @@ class _SyncStatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final (String label, IconData icon, Color color) = switch (status.state) {
-      ScoutingSyncState.signedOut => (
-        'Sign in to load the team database',
-        Icons.cloud_off_rounded,
-        colorScheme.error,
-      ),
-      ScoutingSyncState.noAccess => (
-        'No team access yet. Ask an admin to approve your account.',
-        Icons.lock_outline_rounded,
-        colorScheme.error,
-      ),
-      ScoutingSyncState.syncing => (
-        'Syncing...',
-        Icons.sync_rounded,
-        colorScheme.primary,
-      ),
-      ScoutingSyncState.synced => (
-        status.lastSyncedAt != null
-            ? 'Last synced ${_formatTime(status.lastSyncedAt!)}'
-            : 'Synced',
-        Icons.cloud_done_rounded,
-        colorScheme.primary,
-      ),
-      ScoutingSyncState.offline => (
-        'Offline — showing cached entries',
-        Icons.cloud_off_rounded,
-        colorScheme.onSurfaceVariant,
-      ),
-      ScoutingSyncState.rejected => (
-        status.error != null
-            ? 'Not accepted: ${status.error}'
-            : 'Not accepted. The server rejected this write.',
-        Icons.report_gmailerrorred_rounded,
-        colorScheme.error,
-      ),
-    };
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final ({String label, IconData icon, Color color}) display =
+        databaseSyncDisplay(context, status);
 
     return Row(
       children: [
-        Icon(icon, size: 14, color: color),
+        Icon(display.icon, size: 14, color: display.color),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
-            label,
+            display.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: color),
+                ?.copyWith(color: display.color),
           ),
         ),
         if (status.pendingWrites > 0) ...[
@@ -989,13 +1235,6 @@ class _SyncStatusRow extends StatelessWidget {
         ],
       ],
     );
-  }
-
-  String _formatTime(DateTime dt) {
-    final local = dt.toLocal();
-    final h = local.hour.toString().padLeft(2, '0');
-    final m = local.minute.toString().padLeft(2, '0');
-    return 'at $h:$m';
   }
 }
 

@@ -373,7 +373,7 @@ void main() {
     });
   });
 
-  group('team analysis reached from the team list (#1687)', () {
+  group('team analysis reached from the team list', () {
     Future<ScoutingController> readyScoutingWithNotes() async {
       final controller = ScoutingController(storage: FakeScoutingStorage());
       await controller.bootstrap();

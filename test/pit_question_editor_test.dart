@@ -58,7 +58,7 @@ void main() {
     expect(drivetrain.fields.last.code, 'bumperColor');
   });
 
-  testWidgets('a lead can add a document question (#1594)', (tester) async {
+  testWidgets('a lead can add a document question', (tester) async {
     await _pump(tester, controller);
 
     await tester.ensureVisible(find.text('Add question').first);

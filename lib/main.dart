@@ -15,6 +15,7 @@ import 'package:flutter/foundation.dart'
         TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'firebase_options.dart';
@@ -33,6 +34,7 @@ import 'src/services/match_directory.dart';
 import 'src/services/firestore_active_event_service.dart';
 import 'src/services/local_only_services.dart';
 import 'src/services/desktop_post_match_report_sync_service.dart';
+import 'src/services/android_startup_update.dart';
 import 'src/services/desktop_startup_update.dart';
 import 'src/services/post_match_report_storage.dart';
 import 'src/services/post_match_report_sync_service.dart';
@@ -84,6 +86,7 @@ import 'src/services/trex_team_list_sync_service.dart';
 import 'src/services/desktop_trex_trait_report_sync_service.dart';
 import 'src/services/trex_trait_report_storage.dart';
 import 'src/services/trex_trait_report_sync_service.dart';
+import 'src/services/analytics_service.dart';
 import 'src/services/field_map_catalog.dart';
 import 'src/services/issue_report_service.dart';
 import 'src/services/pick_list_storage.dart';
@@ -106,6 +109,7 @@ import 'src/services/assistant/assistant_service.dart';
 import 'src/services/assistant/assistant_tool.dart';
 import 'src/services/firestore_api_key_config.dart';
 import 'src/services/match13/match13_ratings_service.dart';
+import 'src/services/match13/match13_worker_config.dart';
 import 'src/services/assistant/frc_api_tool_provider.dart';
 import 'src/services/assistant/local_backends.dart';
 import 'src/services/assistant/desktop_assistant_requests.dart';
@@ -152,6 +156,9 @@ bool get _isDesktop =>
     (defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.linux);
+
+bool get _isAndroid =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -234,6 +241,8 @@ Future<void> main() async {
   FirestoreApiKeyConfig? huggingFaceConfig;
 
   FirestoreApiKeyConfig? match13Config;
+
+  Match13WorkerConfig? match13WorkerConfig;
 
   RemoteAssistantCache? remoteAssistantCache;
 
@@ -488,6 +497,13 @@ Future<void> main() async {
         return value is String ? value : null;
       },
     );
+    match13WorkerConfig = Match13WorkerConfig(
+      remoteFetcher: () async {
+        final doc = await restFirestore.getDocument('appConfig/apiKeys');
+        final value = doc?.fields['match13Worker'];
+        return value is String ? value : null;
+      },
+    );
     activeEventSyncService = DesktopActiveEventSyncService(
       authService: desktopAuth,
       firestore: restFirestore,
@@ -517,10 +533,15 @@ Future<void> main() async {
     latestFieldIdLoader: () async => (await FieldMapCatalog().load()).latestId,
     syncService: strategyBoardSyncService,
   );
+
+  final analyticsService = PostHogAnalyticsService();
+  unawaited(analyticsService.start());
+
   final scoutingController = ScoutingController(
     storage: desktopScoutingStorage,
     syncService: scoutingSyncService,
     alertService: alertService,
+    analytics: analyticsService,
   );
   final configController = ScoutConfigController(
     syncService: scoutConfigSyncService,
@@ -530,6 +551,18 @@ Future<void> main() async {
     authService: authService,
     roleService: roleService,
   );
+
+  String? lastIdentifiedUid;
+  userRoleController.addListener(() {
+    final uid = userRoleController.currentUid;
+    if (uid == lastIdentifiedUid) return;
+    lastIdentifiedUid = uid;
+    if (uid != null) {
+      analyticsService.identify(uid);
+    } else {
+      analyticsService.reset();
+    }
+  });
 
   final tbaClient = TbaClient(
     config: teamTbaConfig ?? const CompileTimeTbaConfig(),
@@ -542,7 +575,10 @@ Future<void> main() async {
     tbaClient: tbaClient,
     syncService: activeEventSyncService,
 
-    match13: Match13RatingsService(config: match13Config),
+    match13: Match13RatingsService(
+      config: match13Config,
+      workerConfig: match13WorkerConfig,
+    ),
   );
 
   final teamHistoryService = TeamHistoryService(
@@ -558,6 +594,7 @@ Future<void> main() async {
 
   final postMatchReportController = PostMatchReportController(
     syncService: postMatchReportSyncService,
+    analytics: analyticsService,
   );
 
   final assistantToolRegistry = AssistantToolRegistry([
@@ -669,10 +706,12 @@ Future<void> main() async {
     syncService: pitScoutingSyncService,
     photoStore: pit_photo_store_factory.createPitPhotoStore(),
     photoUploader: photoUploadService,
+    analytics: analyticsService,
   );
 
   final prescoutingController = PrescoutingController(
     syncService: prescoutingSyncService,
+    analytics: analyticsService,
   );
   final cycleLogController = CycleLogController();
   final playoffBoardController = PlayoffBoardController(
@@ -684,8 +723,26 @@ Future<void> main() async {
     unawaited(telemetry.logEvent('app_open'));
   }
 
+  unawaited(
+    PackageInfo.fromPlatform()
+        .then(
+          (info) => analyticsService.capture(
+            'app_opened',
+            properties: {
+              'platform': defaultTargetPlatform.name,
+              'app_version': info.version,
+            },
+          ),
+        )
+        .catchError((_) {}),
+  );
+
   if (_isDesktop) {
     unawaited(runDesktopStartupUpdateCheck());
+  }
+
+  if (_isAndroid) {
+    unawaited(runAndroidStartupUpdateCheck());
   }
 
   runApp(
@@ -702,6 +759,7 @@ Future<void> main() async {
       accuracyMappingService: accuracyMappingService,
       tourService: SharedPreferencesTourService(),
       telemetryService: telemetryService,
+      analyticsService: analyticsService,
       pickListController: pickListController,
       eventStatsController: eventStatsController,
       shiftController: shiftController,

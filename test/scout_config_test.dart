@@ -382,7 +382,7 @@ void main() {
       expect(storedCounterValue(0), 0);
     });
 
-    test('parses the string a `number` field left behind (#1699)', () {
+    test('parses the string a `number` field left behind', () {
       expect(storedCounterValue('47'), 47);
       expect(storedCounterValue(' 47 '), 47);
     });

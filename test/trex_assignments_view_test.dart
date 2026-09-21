@@ -335,7 +335,7 @@ void main() {
     });
   });
 
-  testWidgets('pasting a list adds every scouter to the trait column (#1410)', (
+  testWidgets('pasting a list adds every scouter to the trait column', (
     tester,
   ) async {
     final sync = FakeTRexAssignmentsSyncService();

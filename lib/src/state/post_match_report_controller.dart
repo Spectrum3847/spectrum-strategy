@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/post_match_report.dart';
+import '../services/analytics_service.dart';
 import '../services/post_match_report_storage.dart';
 import '../services/post_match_report_sync_service.dart';
 import 'failed_write_tracker.dart';
@@ -11,10 +12,13 @@ class PostMatchReportController extends ChangeNotifier {
   PostMatchReportController({
     PostMatchReportStorage? storage,
     this._syncService,
-  }) : _storage = storage ?? SharedPreferencesPostMatchReportStorage();
+    AnalyticsService? analytics,
+  }) : _storage = storage ?? SharedPreferencesPostMatchReportStorage(),
+       _analytics = analytics ?? const NoopAnalyticsService();
 
   final PostMatchReportStorage _storage;
   final PostMatchReportSyncService? _syncService;
+  final AnalyticsService _analytics;
 
   Future<void>? _bootstrapFuture;
   Future<void> _saveQueue = Future<void>.value();
@@ -130,6 +134,7 @@ class PostMatchReportController extends ChangeNotifier {
       return false;
     }
 
+    _analytics.capture('post_match_report_saved');
     final sync = _syncService;
     if (sync != null) {
       unawaited(sync.push(snapshot));

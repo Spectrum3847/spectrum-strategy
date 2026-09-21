@@ -21,6 +21,7 @@ import '../services/statbotics/team_history_service.dart';
 import '../state/assistant_chat_controller.dart';
 import '../services/issue_report_service.dart';
 import '../services/spectrum_auth_service.dart';
+import '../services/analytics_service.dart';
 import '../services/telemetry_service.dart';
 import '../services/tour_service.dart';
 import '../services/team_avatar_service.dart';
@@ -81,6 +82,7 @@ class AppShell extends StatefulWidget {
     this.pitShiftMirrorController,
     this.tourService,
     this.telemetryService,
+    this.analyticsService,
     this.usageRollupService,
     this.trexAssignmentsController,
     this.trexTeamListController,
@@ -120,6 +122,8 @@ class AppShell extends StatefulWidget {
   final PitShiftMirrorController? pitShiftMirrorController;
   final TourService? tourService;
   final TelemetryService? telemetryService;
+
+  final AnalyticsService? analyticsService;
 
   final UsageRollupService? usageRollupService;
 
@@ -287,6 +291,7 @@ class _AppShellState extends State<AppShell> {
         telemetry.logEvent('tab_open', detail: _kTabMeta[fullIndex].label),
       );
     }
+    widget.analyticsService?.screen(_kTabMeta[fullIndex].label);
   }
 
   void _onRoleChanged() {
@@ -611,6 +616,7 @@ class _AppShellState extends State<AppShell> {
         controller: widget.strategyController,
         eventController: widget.eventController,
         teamAvatarService: widget.teamAvatarService,
+        analytics: widget.analyticsService,
       ),
       ScoutingTab(
         strategyController: widget.strategyController,
@@ -701,7 +707,7 @@ class _AppShellState extends State<AppShell> {
           ),
           if (_tourVisible)
             WelcomeTourOverlay(
-              steps: buildTourSteps(visible),
+              steps: buildTourSteps(orderedTabs),
               eventController: widget.eventController,
               menuKey: _tabMenuKey,
               menuItems: _tourMenuItems(),

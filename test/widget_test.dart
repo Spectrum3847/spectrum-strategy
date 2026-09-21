@@ -220,7 +220,7 @@ void main() {
 
   testWidgets(
     'the glass tab menu carries the app theme brightness, not the system '
-    'default (#1745)',
+    'default',
     (tester) async {
       const user = SpectrumUser(uid: 'strat-uid', displayName: 'Strat');
       final shell = await _buildShell(
@@ -569,7 +569,7 @@ void main() {
     expect(find.text('Sign in to load the team database'), findsOneWidget);
   });
 
-  testWidgets('Database tab filters stack on phone width without overflow', (
+  testWidgets('Database tab collapses to one filter row on a phone', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -586,14 +586,11 @@ void main() {
     await _openTab(tester, 'Database');
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Filter by team'), findsOneWidget);
-    expect(find.text('Filter by match'), findsOneWidget);
+    expect(find.text('Filter by team'), findsNothing);
+    expect(find.text('Filter by match'), findsNothing);
+    expect(find.text('Team or q42'), findsOneWidget);
 
-    final teamFilterRect = tester.getRect(find.text('Filter by team'));
-    final matchFilterRect = tester.getRect(find.text('Filter by match'));
-    expect(teamFilterRect.top, lessThan(matchFilterRect.top));
-
-    await tester.tap(find.text('Filter by team'), warnIfMissed: false);
+    await tester.tap(find.text('Team or q42'), warnIfMissed: false);
     await tester.pump();
     expect(tester.testTextInput.isVisible, isTrue);
 
@@ -618,7 +615,7 @@ void main() {
 
     await _openTab(tester, 'Database');
 
-    await tester.tap(find.text('Filter by match'), warnIfMissed: false);
+    await tester.tap(find.text('Team or q42'), warnIfMissed: false);
     await tester.pump();
     expect(tester.testTextInput.isVisible, isTrue);
 
@@ -626,7 +623,7 @@ void main() {
     await tester.pump();
     expect(tester.testTextInput.isVisible, isFalse);
 
-    await tester.tap(find.text('Filter by match'), warnIfMissed: false);
+    await tester.tap(find.text('Team or q42'), warnIfMissed: false);
     await tester.pump();
     expect(tester.testTextInput.isVisible, isTrue);
     await tester.testTextInput.receiveAction(TextInputAction.done);

@@ -99,7 +99,9 @@ void main() {
     await tester.tap(find.byIcon(Icons.send_rounded));
     await tester.pump();
 
-    expect(find.textContaining('Thinking'), findsOneWidget);
+    expect(find.text('Thinking'), findsOneWidget);
+
+    expect(find.textContaining('real seconds'), findsNothing);
 
     final sendButton = tester.widget<IconButton>(
       find.widgetWithIcon(IconButton, Icons.send_rounded),

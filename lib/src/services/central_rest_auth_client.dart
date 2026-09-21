@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'central_approval_check.dart';
 import 'central_auth_client.dart';
+import 'central_platform_config.dart';
 
 export 'package:firestore_client/firestore_client.dart'
     show CentralRecheckOutcome;
@@ -11,10 +12,13 @@ class CentralRestAuthClient extends fc.CentralRestAuthClient
     implements CentralAuthClient {
   CentralRestAuthClient({
     required super.centralApiKey,
-    super.centralFunctionsBaseUrl,
+    String? centralFunctionsBaseUrl,
     super.httpClient,
     super.customTokenTimeout,
-  });
+  }) : super(
+         centralFunctionsBaseUrl:
+             centralFunctionsBaseUrl ?? defaultCentralFunctionsBaseUrl,
+       );
 }
 
 Future<fc.CentralRecheckOutcome> runCentralApprovalRecheck({

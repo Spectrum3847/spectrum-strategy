@@ -2,17 +2,23 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../services/analytics_service.dart';
 import '../../state/failed_write_tracker.dart';
 import '../models/prescout_entry.dart';
 import '../services/prescouting_storage.dart';
 import '../services/prescouting_sync_service.dart';
 
 class PrescoutingController extends ChangeNotifier {
-  PrescoutingController({PrescoutingStorage? storage, this._syncService})
-    : _storage = storage ?? SharedPreferencesPrescoutingStorage();
+  PrescoutingController({
+    PrescoutingStorage? storage,
+    this._syncService,
+    AnalyticsService? analytics,
+  }) : _storage = storage ?? SharedPreferencesPrescoutingStorage(),
+       _analytics = analytics ?? const NoopAnalyticsService();
 
   final PrescoutingStorage _storage;
   final PrescoutingSyncService? _syncService;
+  final AnalyticsService _analytics;
 
   Future<void>? _bootstrapFuture;
   Future<void> _saveQueue = Future<void>.value();
@@ -125,6 +131,7 @@ class PrescoutingController extends ChangeNotifier {
       );
       return false;
     }
+    _analytics.capture('prescout_entry_saved');
     if (sync != null) {
       unawaited(sync.push(snapshot));
     }

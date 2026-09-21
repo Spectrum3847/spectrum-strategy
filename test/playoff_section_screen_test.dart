@@ -342,51 +342,50 @@ void main() {
     expect(board.columnLabel(0), 'Must pick');
   });
 
-  testWidgets(
-    'the sixth column has extra rows below the rest of the board (#1846)',
-    (tester) async {
-      final eventController = await _loadedEventController();
-      await eventController.setMyTeamNumber(3847);
-      final configController = ScoutConfigController(
-        service: FakeScoutConfigService(),
-      );
-      await configController.bootstrap();
-      final storage = FakePlayoffBoardStorage();
-      final boardController = PlayoffBoardController(storage: storage);
-      await boardController.bootstrap();
+  testWidgets('the sixth column has extra rows below the rest of the board', (
+    tester,
+  ) async {
+    final eventController = await _loadedEventController();
+    await eventController.setMyTeamNumber(3847);
+    final configController = ScoutConfigController(
+      service: FakeScoutConfigService(),
+    );
+    await configController.bootstrap();
+    final storage = FakePlayoffBoardStorage();
+    final boardController = PlayoffBoardController(storage: storage);
+    await boardController.bootstrap();
 
-      await tester.pumpWidget(
-        _host(
-          eventController: eventController,
-          scoutingController: await _seed(const []),
-          configController: configController,
-          boardController: boardController,
-        ),
-      );
-      await tester.pump(Duration.zero);
+    await tester.pumpWidget(
+      _host(
+        eventController: eventController,
+        scoutingController: await _seed(const []),
+        configController: configController,
+        boardController: boardController,
+      ),
+    );
+    await tester.pump(Duration.zero);
 
-      await tester.tap(find.text('Scouting meeting'));
-      await tester.pump(Duration.zero);
+    await tester.tap(find.text('Scouting meeting'));
+    await tester.pump(Duration.zero);
 
-      expect(find.byKey(const ValueKey('meeting-label-5')), findsOneWidget);
+    expect(find.byKey(const ValueKey('meeting-label-5')), findsOneWidget);
 
-      final extraRow = PlayoffBoard.meetingRowCount + 3;
-      final cellKey = ValueKey<String>('meeting-$extraRow-5');
-      await tester.scrollUntilVisible(
-        find.byKey(cellKey),
-        400,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.enterText(find.byKey(cellKey), '9999');
-      await boardController.pendingWrites;
+    final extraRow = PlayoffBoard.meetingRowCount + 3;
+    final cellKey = ValueKey<String>('meeting-$extraRow-5');
+    await tester.scrollUntilVisible(
+      find.byKey(cellKey),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(find.byKey(cellKey), '9999');
+    await boardController.pendingWrites;
 
-      final board = storage.boards['2026txhou'];
-      expect(board, isNotNull);
-      expect(board!.meetingCell(extraRow, 5), '9999');
+    final board = storage.boards['2026txhou'];
+    expect(board, isNotNull);
+    expect(board!.meetingCell(extraRow, 5), '9999');
 
-      expect(find.byKey(ValueKey<String>('meeting-$extraRow-0')), findsNothing);
-    },
-  );
+    expect(find.byKey(ValueKey<String>('meeting-$extraRow-0')), findsNothing);
+  });
 
   testWidgets('at desktop width the side tables sit beside the sorting board', (
     tester,
@@ -613,7 +612,7 @@ void main() {
 
   testWidgets(
     'typing any of the three shown teams into the alliance grid advances '
-    'it, not just the first (#1847)',
+    'it, not just the first',
     (tester) async {
       tester.view.physicalSize = const Size(1800, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -671,7 +670,7 @@ void main() {
     },
   );
 
-  testWidgets('a carded team is highlighted in the alliance grid (#1847)', (
+  testWidgets('a carded team is highlighted in the alliance grid', (
     tester,
   ) async {
     final eventController = await _loadedEventController();
@@ -718,8 +717,7 @@ void main() {
   });
 
   testWidgets(
-    'a yellow card and a red card get different alliance-grid highlights '
-    '(#1880)',
+    'a yellow card and a red card get different alliance-grid highlights',
     (tester) async {
       final eventController = await _loadedEventController();
       await eventController.setMyTeamNumber(3847);
@@ -773,51 +771,50 @@ void main() {
     },
   );
 
-  testWidgets(
-    'a next-up panel shows auto and teleop averages alongside IQM (#1847)',
-    (tester) async {
-      final eventController = await _loadedEventController();
-      await eventController.setMyTeamNumber(3847);
-      final configController = ScoutConfigController(
-        service: FakeScoutConfigService(),
-      );
-      await configController.bootstrap();
-      final scoutingController = await _seed([
-        _entry(
-          118,
-          match: 'qf1',
-          fieldValues: {'autoFuelScored': 10, 'teleopFuelScored': 40},
+  testWidgets('a next-up panel shows auto and teleop averages alongside IQM', (
+    tester,
+  ) async {
+    final eventController = await _loadedEventController();
+    await eventController.setMyTeamNumber(3847);
+    final configController = ScoutConfigController(
+      service: FakeScoutConfigService(),
+    );
+    await configController.bootstrap();
+    final scoutingController = await _seed([
+      _entry(
+        118,
+        match: 'qf1',
+        fieldValues: {'autoFuelScored': 10, 'teleopFuelScored': 40},
+      ),
+      _entry(
+        118,
+        match: 'qf2',
+        fieldValues: {'autoFuelScored': 20, 'teleopFuelScored': 60},
+      ),
+    ]);
+    final boardController = PlayoffBoardController(
+      storage: FakePlayoffBoardStorage(<String, PlayoffBoard>{
+        '2026txhou': const PlayoffBoard(
+          meetingCells: <String, String>{'0,0': '118'},
         ),
-        _entry(
-          118,
-          match: 'qf2',
-          fieldValues: {'autoFuelScored': 20, 'teleopFuelScored': 60},
-        ),
-      ]);
-      final boardController = PlayoffBoardController(
-        storage: FakePlayoffBoardStorage(<String, PlayoffBoard>{
-          '2026txhou': const PlayoffBoard(
-            meetingCells: <String, String>{'0,0': '118'},
-          ),
-        }),
-      );
-      await boardController.bootstrap();
+      }),
+    );
+    await boardController.bootstrap();
 
-      await tester.pumpWidget(
-        _host(
-          eventController: eventController,
-          scoutingController: scoutingController,
-          configController: configController,
-          boardController: boardController,
-        ),
-      );
-      await tester.pump(Duration.zero);
+    await tester.pumpWidget(
+      _host(
+        eventController: eventController,
+        scoutingController: scoutingController,
+        configController: configController,
+        boardController: boardController,
+      ),
+    );
+    await tester.pump(Duration.zero);
 
-      await tester.tap(find.text('Alliances'));
-      await tester.pump(Duration.zero);
+    await tester.tap(find.text('Alliances'));
+    await tester.pump(Duration.zero);
 
-      expect(find.textContaining('Avg auto: 15'), findsOneWidget);
-      expect(find.textContaining('Avg teleop: 50'), findsOneWidget);
-    },
-  );
+    expect(find.textContaining('Avg auto: 15'), findsOneWidget);
+    expect(find.textContaining('Avg teleop: 50'), findsOneWidget);
+  });
 }

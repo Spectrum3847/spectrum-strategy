@@ -29,6 +29,10 @@ SUBTITLE = "FRC strategy and scouting"
 
 CHANNEL_LABELS = {
     "stable": {"suffix": "", "subtitle": SUBTITLE},
+    "rc": {
+        "suffix": " RC",
+        "subtitle": f"{SUBTITLE} - release candidates, not final",
+    },
     "nightly": {
         "suffix": " Nightly",
         "subtitle": f"{SUBTITLE} - nightly builds, expect breakage",
@@ -52,7 +56,9 @@ APP_PERMISSIONS = {
 
 def parse_args(argv):
     p = argparse.ArgumentParser(description="Generate an AltStore source JSON.")
-    p.add_argument("--channel", required=True, choices=["nightly", "stable", "pr"])
+    p.add_argument(
+        "--channel", required=True, choices=["nightly", "stable", "rc", "pr"]
+    )
     p.add_argument(
         "--pr",
         type=int,
@@ -168,7 +174,7 @@ def build_source(args):
         "minOSVersion": args.min_os,
     }
 
-    if args.channel == "stable":
+    if args.channel in ("stable", "rc"):
         history = load_existing_versions(args.existing)
 
         history = [

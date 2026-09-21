@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/match_forecast.dart';
 import '../services/firestore_active_event_service.dart';
 import '../services/match13/match13_ratings_service.dart';
 import '../services/statbotics/event_data_cache.dart';
@@ -62,6 +63,13 @@ class EventController extends ChangeNotifier {
 
   bool _tbaKeyRejected = false;
 
+  Map<String, List<MatchForecast>> _forecasts =
+      const <String, List<MatchForecast>>{};
+  String _forecastsEventKey = '';
+  Future<void>? _forecastsFuture;
+  bool _forecastsLoading = false;
+  Set<String> _forecastSourcesMissing = const <String>{};
+
   List<StatboticsEvent> _availableEvents = const <StatboticsEvent>[];
   bool _eventsLoading = false;
   String? _eventsError;
@@ -102,6 +110,14 @@ class EventController extends ChangeNotifier {
   bool get teamsAreRosterOnly =>
       _teamEvents.isEmpty && _teamNicknames.isNotEmpty;
   List<StatboticsMatch> get matches => _matches;
+
+  List<MatchForecast> forecastsFor(String matchKey) =>
+      _forecasts[matchKey] ?? const <MatchForecast>[];
+
+  bool get forecastsLoading => _forecastsLoading;
+
+  Set<String> get forecastSourcesMissing => _forecastSourcesMissing;
+
   Map<int, String> get teamNicknames => _teamNicknames;
   bool get isLoading => _loading;
   String? get error => _error;
@@ -177,6 +193,7 @@ class EventController extends ChangeNotifier {
     _teamEvents = const <StatboticsTeamEvent>[];
     _matches = const <StatboticsMatch>[];
     _teamNicknames = const <int, String>{};
+    _clearForecasts();
     _error = null;
     notifyListeners();
 
@@ -215,6 +232,103 @@ class EventController extends ChangeNotifier {
         debugPrint('Failed to auto-push active event: $e');
       }
     }());
+  }
+
+  Future<void> loadForecasts({bool force = false}) {
+    if (_eventKey.isEmpty) return Future<void>.value();
+
+    final inFlight = _forecastsFuture;
+    if (inFlight != null) return inFlight;
+    if (!force && _forecastsEventKey == _eventKey) return Future<void>.value();
+    return _forecastsFuture = _loadForecasts(_eventKey);
+  }
+
+  Future<void> _loadForecasts(String requestKey) async {
+    _forecastsLoading = true;
+    notifyListeners();
+
+    Map<String, MatchForecast>? fromTba;
+    Map<String, MatchForecast>? fromMatch13;
+    try {
+      await Future.wait(<Future<void>>[
+        () async {
+          fromTba = await _fetchTbaForecasts(requestKey);
+        }(),
+        () async {
+          fromMatch13 = await match13?.matchForecastsFor(requestKey);
+        }(),
+      ]);
+
+      if (requestKey != _eventKey) return;
+
+      final merged = <String, List<MatchForecast>>{};
+      for (final source in <Map<String, MatchForecast>?>[
+        fromTba,
+        fromMatch13,
+      ]) {
+        for (final forecast
+            in (source ?? const <String, MatchForecast>{}).values) {
+          merged
+              .putIfAbsent(forecast.matchKey, () => <MatchForecast>[])
+              .add(forecast);
+        }
+      }
+      _forecasts = Map<String, List<MatchForecast>>.unmodifiable(merged);
+      _forecastsEventKey = requestKey;
+      _forecastSourcesMissing = <String>{
+        if (fromTba == null) MatchForecastSource.tba.label,
+        if (fromMatch13 == null) MatchForecastSource.match13.label,
+      };
+    } finally {
+      _forecastsFuture = null;
+      if (requestKey == _eventKey) _forecastsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<Map<String, MatchForecast>?> _fetchTbaForecasts(
+    String eventKey,
+  ) async {
+    final tba = _tbaClient;
+    if (tba == null) return null;
+    try {
+      final predictions = await tba.getEventPredictions(eventKey);
+      return <String, MatchForecast>{
+        for (final entry in predictions.entries)
+          entry.key: MatchForecast(
+            matchKey: entry.key,
+            source: MatchForecastSource.tba,
+            redScore: entry.value.redScore,
+            blueScore: entry.value.blueScore,
+            redWinProbability: _redWinProbabilityOf(entry.value),
+          ),
+      };
+    } catch (e) {
+      debugPrint('EventController: TBA forecasts for $eventKey failed — $e');
+      return null;
+    }
+  }
+
+  static double _redWinProbabilityOf(TbaMatchPrediction prediction) {
+    final probability = MatchForecast.normalizeProbability(
+      prediction.probability,
+    );
+    switch (prediction.winningAlliance) {
+      case 'red':
+        return probability;
+      case 'blue':
+        return 1 - probability;
+      default:
+        return 0.5;
+    }
+  }
+
+  void _clearForecasts() {
+    _forecasts = const <String, List<MatchForecast>>{};
+    _forecastsEventKey = '';
+    _forecastsFuture = null;
+    _forecastsLoading = false;
+    _forecastSourcesMissing = const <String>{};
   }
 
   Future<void> refresh() async {

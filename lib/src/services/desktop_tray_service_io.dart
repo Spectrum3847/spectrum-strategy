@@ -10,17 +10,14 @@ import 'package:window_manager/window_manager.dart';
 
 import 'minimize_to_tray_setting.dart';
 
-class DesktopTrayService with TrayListener, WindowListener {
+class DesktopTrayService with WindowListener {
   DesktopTrayService({MinimizeToTraySetting? setting})
     : _setting = setting ?? MinimizeToTraySetting();
 
   static final DesktopTrayService shared = DesktopTrayService();
 
-  static const String _showMenuKey = 'show';
-  static const String _quitMenuKey = 'quit';
-
   final MinimizeToTraySetting _setting;
-  bool _trayReady = false;
+  TrayIcon? _trayIcon;
 
   Future<bool> isEnabled() => _setting.isEnabled();
 
@@ -30,28 +27,59 @@ class DesktopTrayService with TrayListener, WindowListener {
     try {
       await windowManager.ensureInitialized();
       windowManager.addListener(this);
-      trayManager.addListener(this);
+
+      final trayIcon = TrayIcon.create();
+      if (trayIcon == null) return;
 
       final iconPath = defaultTargetPlatform == TargetPlatform.windows
           ? 'assets/icon/tray_icon.ico'
           : 'assets/icon/tray_icon.png';
-      await trayManager.setIcon(iconPath);
-      await trayManager.setToolTip('Spectrum Strategy');
-      await trayManager.setContextMenu(
-        Menu(
-          items: [
-            MenuItem(key: _showMenuKey, label: 'Show Spectrum Strategy'),
-            MenuItem.separator(),
-            MenuItem(key: _quitMenuKey, label: 'Quit'),
-          ],
-        ),
-      );
-      _trayReady = true;
+      final icon = ImageAsset.fromAsset(iconPath);
+      if (icon == null) {
+        trayIcon.dispose();
+        return;
+      }
+
+      final menu = Menu.create()!;
+      final showItem = MenuItem.createWithLabelAndType(
+        'Show Spectrum Strategy',
+        MenuItemType.normal,
+      )!..addListener(_onShowItemEvent);
+      final quitItem = MenuItem.createWithLabelAndType(
+        'Quit',
+        MenuItemType.normal,
+      )!..addListener(_onQuitItemEvent);
+      menu
+        ..addItem(showItem)
+        ..addSeparator()
+        ..addItem(quitItem);
+
+      trayIcon
+        ..icon = icon
+        ..setTooltip('Spectrum Strategy')
+        ..setContextMenu(menu)
+        ..setContextMenuTrigger(ContextMenuTrigger.rightClicked)
+        ..addListener(_onTrayIconEvent)
+        ..setVisible(true);
+
+      _trayIcon = trayIcon;
 
       await windowManager.setPreventClose(true);
     } catch (_) {
-      _trayReady = false;
+      _trayIcon = null;
     }
+  }
+
+  void _onTrayIconEvent(TrayIconEvent event) {
+    if (event is TrayIconClickedEvent) unawaited(showWindow());
+  }
+
+  void _onShowItemEvent(MenuEvent event) {
+    if (event is MenuItemClickedEvent) unawaited(showWindow());
+  }
+
+  void _onQuitItemEvent(MenuEvent event) {
+    if (event is MenuItemClickedEvent) unawaited(quit());
   }
 
   @override
@@ -65,7 +93,7 @@ class DesktopTrayService with TrayListener, WindowListener {
   }
 
   Future<void> _handleClose() async {
-    if (_trayReady && await isEnabled()) {
+    if (_trayIcon != null && await isEnabled()) {
       await _hideToTray();
     } else {
       await quit();
@@ -73,7 +101,7 @@ class DesktopTrayService with TrayListener, WindowListener {
   }
 
   Future<void> _hideToTray() async {
-    if (!_trayReady || !await isEnabled()) return;
+    if (_trayIcon == null || !await isEnabled()) return;
     await windowManager.hide();
     await windowManager.setSkipTaskbar(true);
   }
@@ -84,28 +112,9 @@ class DesktopTrayService with TrayListener, WindowListener {
     await windowManager.focus();
   }
 
-  @override
-  void onTrayIconMouseDown() {
-    unawaited(showWindow());
-  }
-
-  @override
-  void onTrayIconRightMouseDown() {
-    unawaited(trayManager.popUpContextMenu());
-  }
-
-  @override
-  void onTrayMenuItemClick(MenuItem menuItem) {
-    switch (menuItem.key) {
-      case _showMenuKey:
-        unawaited(showWindow());
-      case _quitMenuKey:
-        unawaited(quit());
-    }
-  }
-
   Future<void> quit() async {
-    await trayManager.destroy();
+    _trayIcon?.dispose();
+    _trayIcon = null;
     await windowManager.destroy();
     exit(0);
   }

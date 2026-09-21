@@ -36,7 +36,7 @@ plan; ours does.
 ## Before you start
 
 - A Google account, and a card for the Blaze plan.
-- The Flutter SDK. This release pins Flutter 3.47.3 and Dart 3.13.3. If you
+- The Flutter SDK. This release pins Flutter 3.47.5 and Dart 3.13.4. If you
   have never installed it, [docs/setup-guide.md](setup-guide.md) walks through
   Windows, macOS, and Linux.
 - The Firebase CLI (`npm install -g firebase-tools`) and the FlutterFire CLI
@@ -100,13 +100,13 @@ The central project id is a build define, so most of this is one flag you will
 pass in step 7:
 
 ```
---dart-define=SPECTRUM_CENTRAL_PROJECT_ID=yourteam-central
+--dart-define=CENTRAL_PROJECT_ID=yourteam-central
 ```
 
 The callable endpoint follows it automatically, resolving to
 `https://us-central1-yourteam-central.cloudfunctions.net`. If you deploy the
 function outside `us-central1` or behind a custom domain, override that too
-with `--dart-define=SPECTRUM_CENTRAL_FUNCTIONS_BASE_URL=...`. It has to be
+with `--dart-define=CENTRAL_FUNCTIONS_BASE_URL=...`. It has to be
 https either way, since that URL carries a bearer token.
 
 Two files still need editing by hand:
@@ -212,7 +212,7 @@ to sign in and says so, which is deliberate.
 ```
 flutter run \
   --dart-define=SPECTRUM_APP_KEY=yourapp \
-  --dart-define=SPECTRUM_CENTRAL_PROJECT_ID=yourteam-central
+  --dart-define=CENTRAL_PROJECT_ID=yourteam-central
 ```
 
 Use the same app-key string you wrote into `apps/{key}`. Pass both defines on
@@ -226,7 +226,7 @@ Google Cloud console:
 ```
 flutter build linux \
   --dart-define=SPECTRUM_APP_KEY=yourapp \
-  --dart-define=SPECTRUM_CENTRAL_PROJECT_ID=yourteam-central \
+  --dart-define=CENTRAL_PROJECT_ID=yourteam-central \
   --dart-define=GOOGLE_OAUTH_CLIENT_ID=...apps.googleusercontent.com \
   --dart-define=GOOGLE_OAUTH_CLIENT_SECRET=...
 ```
@@ -285,31 +285,54 @@ key anywhere in this: a request carries the caller's own Firebase ID token, and
 the Worker re-presents that token to your Firestore to check the profile, so a
 forged token fails at Firestore and the Worker never verifies one itself.
 
-## Optional: the scheduled jobs
+## Optional: the cron Worker
 
-Four Node services in `scripts/` do the work that happens while nobody has the
-app open. The app works without all of them, so treat this as a later
-afternoon, not part of the first one:
+Five jobs that would otherwise need the app open, or a scheduled Node job,
+run as one Cloudflare Worker, `scripts/cron-worker/`, each on its own
+route so it can run on its own schedule. The app works without all of them,
+so treat this as a later afternoon, not part of the first one.
 
-| Service | What it does | Needs |
-| --- | --- | --- |
-| `accuracy-cron` | Compares a scouter's entry against the match result and Slacks them when it is off | `SLACK_BOT_TOKEN` |
-| `shift-cron` | Reminds scouters on Slack when their shift is coming up | `SLACK_BOT_TOKEN` |
-| `report-cron` | Posts post-match reports | `GH_TOKEN` |
-| `usage-cron` | Rolls up telemetry so the Users tab has numbers | Nothing extra |
+| Job | Route | What it does | Needs | Suggested cadence |
+| --- | --- | --- | --- | --- |
+| `shift` | `/run/shift` | Shift-start and shift-trade Slack DMs | `SPECTRUM_PLATFORM_SERVICE_ACCOUNT`, `SLACK_BOT_TOKEN` | Every 5 minutes |
+| `accuracy` | `/run/accuracy` | Compares a scouter's entry against the match result and Slacks them when it is off | `SLACK_BOT_TOKEN` (optional; in-app alert only without it) | Every 5 minutes |
+| `report` | `/run/report` | Turns in-app reports into GitHub issues, attaching any screenshot from the `PHOTOS` R2 bucket | `GH_TOKEN` | Every 5 minutes |
+| `scheduleMirror` | `/run/scheduleMirror` | Mirrors the pit crew's schedule and the scouting rotation between this app and SpectrumPit | `PIT_FIREBASE_SERVICE_ACCOUNT` | Once a day |
+| `usage` | `/run/usage` | Rolls up telemetry so the Usage tab has numbers | Nothing extra | Once a day |
 
-They run on Node 24 with pnpm, and every one of them takes its credentials
-from the environment rather than from a file in the repository, so there is
-nothing to fill in before you read the source. Each expects
-`FIREBASE_SERVICE_ACCOUNT` (a service account JSON for your app project) and
-reads the rest of its configuration from Firestore under `appConfig`: the
-accuracy mapping from `appConfig/accuracyMapping`, the shift reminders from
-`appConfig/activeEvent`.
-Run one with `DRY_RUN=1` first; they all honour it.
+Every job expects `FIREBASE_SERVICE_ACCOUNT` (a service account JSON for
+your app project) and reads the rest of its configuration from Firestore
+under `appConfig`, for example the accuracy mapping from
+`appConfig/accuracyMapping`. There is no Node runtime underneath a Worker,
+so Firestore is read and written over its REST API with an access token
+minted from the service account, not `firebase-admin`.
 
-The Slack ones need a bot token from your own Slack workspace, and they
-message a person by the `slackId` on their profile, so those have to be filled
-in before a reminder reaches anyone.
+Edit `wrangler.jsonc` with your own `account_id`, `FIREBASE_PROJECT`,
+`PLATFORM_PROJECT`, `PIT_PROJECT`, `GITHUB_REPO`, and R2 bucket name, then
+deploy the same way as the photo Worker:
+
+```
+cd scripts/cron-worker
+pnpm dlx wrangler@latest deploy
+```
+
+Set `FIREBASE_SERVICE_ACCOUNT`, `PIT_FIREBASE_SERVICE_ACCOUNT`,
+`SPECTRUM_PLATFORM_SERVICE_ACCOUNT`, `SLACK_BOT_TOKEN`, `GH_TOKEN`, and a
+`RUN_TOKEN` you choose yourself, as Worker secrets with `wrangler secret
+put`; the Worker skips any job whose secrets are missing rather than
+failing.
+
+Something has to call each job's route on a schedule; there is no cadence
+inside the Worker. The Cloudflare account's five free cron triggers may
+already be spoken for, so an external scheduler (for example cron-job.org)
+works without needing one: create one entry per route, each a `POST` with
+`RUN_TOKEN` in the `X-Run-Token` header, on the cadence from the table
+above. A route also runs its job on demand, so `POST /run/<jobName>` by
+hand is how you trigger one to test it.
+
+The Slack jobs need a bot token from your own Slack workspace, and `shift`
+and `accuracy` message a person by the `slackId` on their profile, so that
+has to be filled in before either reaches anyone.
 
 ## What you do not get
 

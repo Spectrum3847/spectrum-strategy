@@ -149,7 +149,7 @@ void main() {
       expect(
         field.type,
         ScoutFieldType.longText,
-        reason: '${field.code} should be long-text (#1595)',
+        reason: '${field.code} should be long-text',
       );
     }
 
@@ -160,7 +160,7 @@ void main() {
   });
 
   test(
-    'the default form has a document field for the field map upload (#1594)',
+    'the default form has a document field for the field map upload',
     () async {
       final config = await ScoutConfigService.pit().loadDefault();
       final fieldMapSection = config.sections.firstWhere(

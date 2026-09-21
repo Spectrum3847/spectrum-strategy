@@ -19,7 +19,7 @@ class DesktopAuthService implements SpectrumAuthService {
     required this.clientId,
     required this.firebaseApiKey,
     required this.centralApiKey,
-    this.centralFunctionsBaseUrl = defaultCentralFunctionsBaseUrl,
+    String? centralFunctionsBaseUrl,
     String? appKey,
     this.clientSecret = '',
     Future<void> Function(Uri url)? launch,
@@ -31,7 +31,9 @@ class DesktopAuthService implements SpectrumAuthService {
     Duration? exchangeTimeout,
     CentralApprovalCheck? approvalCheck,
     Duration? approvalRetryInterval,
-  }) : _session = session ?? fc.FirebaseAuthSession(apiKey: firebaseApiKey),
+  }) : centralFunctionsBaseUrl =
+           centralFunctionsBaseUrl ?? defaultCentralFunctionsBaseUrl,
+       _session = session ?? fc.FirebaseAuthSession(apiKey: firebaseApiKey),
        _prefsLoader = prefsLoader ?? SharedPreferences.getInstance,
        _customTokenTimeout = customTokenTimeout ?? _defaultCustomTokenTimeout,
 

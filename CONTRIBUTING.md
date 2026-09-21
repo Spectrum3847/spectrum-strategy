@@ -16,7 +16,7 @@ recommended git GUI client.
 
 ## Before you open a PR
 
-- Toolchain: Flutter 3.47.3 / Dart 3.13.3.
+- Toolchain: Flutter 3.47.5 / Dart 3.13.4.
 - Run the same gates CI runs:
 
 ```bash
@@ -35,3 +35,5 @@ flutter test
 ## License and attribution
 
 By contributing you agree that your contribution is licensed under AGPL-3.0, the same license as this mirror. The private repository it gets ported into is not published under any license; by contributing here you also grant Spectrum 3847 permission to incorporate your change there under the same terms as the rest of that codebase. Your authorship is preserved on the commit that lands in the private repo and you keep your copyright either way.
+
+Add yourself to [CONTRIBUTORS.md](CONTRIBUTORS.md) in your first PR.

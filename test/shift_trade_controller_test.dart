@@ -76,7 +76,7 @@ void main() {
   });
 
   test(
-    'pendingTradesFor drops resolved trades but keeps pending ones (#1408)',
+    'pendingTradesFor drops resolved trades but keeps pending ones',
     () async {
       final sync = FakeShiftTradeSyncService(uid: 'requester-1');
       final controller = ShiftTradeController(syncService: sync);
@@ -123,43 +123,45 @@ void main() {
     },
   );
 
-  test('acceptedTradesFor only surfaces resolved-accepted trades involving uid '
-      '(#1455)', () async {
-    final sync = FakeShiftTradeSyncService(uid: 'requester-1');
-    final controller = ShiftTradeController(syncService: sync);
-    addTearDown(controller.dispose);
-    await controller.bootstrap();
-    await controller.watchEvent('2026miket');
+  test(
+    'acceptedTradesFor only surfaces resolved-accepted trades involving uid',
+    () async {
+      final sync = FakeShiftTradeSyncService(uid: 'requester-1');
+      final controller = ShiftTradeController(syncService: sync);
+      addTearDown(controller.dispose);
+      await controller.bootstrap();
+      await controller.watchEvent('2026miket');
 
-    await controller.requestTrade(
-      targetUid: 'target-1',
-      targetDisplayName: 'Target one',
-      requesterBlock: const ScoutShiftBlock(startMatch: 1, endMatch: 6),
-    );
-    await controller.requestTrade(
-      targetUid: 'target-2',
-      targetDisplayName: 'Target two',
-      requesterBlock: const ScoutShiftBlock(startMatch: 7, endMatch: 12),
-    );
-    await Future<void>.delayed(Duration.zero);
+      await controller.requestTrade(
+        targetUid: 'target-1',
+        targetDisplayName: 'Target one',
+        requesterBlock: const ScoutShiftBlock(startMatch: 1, endMatch: 6),
+      );
+      await controller.requestTrade(
+        targetUid: 'target-2',
+        targetDisplayName: 'Target two',
+        requesterBlock: const ScoutShiftBlock(startMatch: 7, endMatch: 12),
+      );
+      await Future<void>.delayed(Duration.zero);
 
-    final toAccept = controller.trades.firstWhere(
-      (t) => t.targetUid == 'target-1',
-    );
-    final toLeavePending = controller.trades.firstWhere(
-      (t) => t.targetUid == 'target-2',
-    );
-    await controller.accept(toAccept);
-    await Future<void>.delayed(Duration.zero);
+      final toAccept = controller.trades.firstWhere(
+        (t) => t.targetUid == 'target-1',
+      );
+      final toLeavePending = controller.trades.firstWhere(
+        (t) => t.targetUid == 'target-2',
+      );
+      await controller.accept(toAccept);
+      await Future<void>.delayed(Duration.zero);
 
-    final accepted = controller.acceptedTradesFor('requester-1');
-    expect(accepted, hasLength(1));
-    expect(accepted.single.id, toAccept.id);
-    expect(accepted.single.status, ShiftTradeStatus.accepted);
-    expect(accepted.any((t) => t.id == toLeavePending.id), isFalse);
-    expect(controller.acceptedTradesFor('target-1'), hasLength(1));
-    expect(controller.acceptedTradesFor('nobody'), isEmpty);
-  });
+      final accepted = controller.acceptedTradesFor('requester-1');
+      expect(accepted, hasLength(1));
+      expect(accepted.single.id, toAccept.id);
+      expect(accepted.single.status, ShiftTradeStatus.accepted);
+      expect(accepted.any((t) => t.id == toLeavePending.id), isFalse);
+      expect(controller.acceptedTradesFor('target-1'), hasLength(1));
+      expect(controller.acceptedTradesFor('nobody'), isEmpty);
+    },
+  );
 
   test('effectiveSchedule overlays an accepted trade, leaving a pending one '
       'untouched', () async {
@@ -200,7 +202,7 @@ void main() {
 
   test('effectiveSchedule keeps every roster column aligned after accepting a '
       'trade, even when several scouters share the empty "no linked account" '
-      'uid (#1408)', () async {
+      'uid', () async {
     final sync = FakeShiftTradeSyncService(uid: 'u0');
     final controller = ShiftTradeController(syncService: sync);
     addTearDown(controller.dispose);
@@ -253,7 +255,7 @@ void main() {
   });
 
   test('an accepted trade whose counterpart left the roster no-ops instead of '
-      'dropping the traded block (#1408)', () async {
+      'dropping the traded block', () async {
     final sync = FakeShiftTradeSyncService(uid: 'u0');
     final controller = ShiftTradeController(syncService: sync);
     addTearDown(controller.dispose);

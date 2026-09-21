@@ -12,8 +12,14 @@ void main() {
       expect(assistantChatSystemPrompt, contains('a match result'));
     });
 
-    test('says to admit not knowing rather than guess', () {
-      expect(assistantChatSystemPrompt, contains('do not know'));
+    test('says to report what was not found rather than guess', () {
+      expect(assistantChatSystemPrompt, contains('could not find'));
+      expect(assistantChatSystemPrompt, isNot(contains('do not know')));
+    });
+
+    test('lets a no-data question, a greeting, be answered directly', () {
+      expect(assistantChatSystemPrompt, contains('a greeting'));
+      expect(assistantChatSystemPrompt, contains('without a tool'));
     });
 
     test('says answers stay short for a lead reading between matches', () {
@@ -21,7 +27,7 @@ void main() {
       expect(assistantChatSystemPrompt, contains('between matches'));
     });
 
-    test('marks scouter-written text as untrusted data, matching #1520', () {
+    test('marks scouter-written text as untrusted data', () {
       expect(
         assistantChatSystemPrompt,
         contains(
@@ -79,6 +85,17 @@ void main() {
         contains('Never invent a team number'),
       );
       expect(assistantChatSystemPromptCompact, contains('untrusted'));
+    });
+
+    test('answers greetings directly and data questions by tool', () {
+      expect(assistantChatSystemPromptCompact, contains('a greeting'));
+      expect(assistantChatSystemPromptCompact, contains('answer directly'));
+      expect(
+        assistantChatSystemPromptCompact,
+        contains('only from what your tools return'),
+      );
+      expect(assistantChatSystemPromptCompact, contains('could not find'));
+      expect(assistantChatSystemPromptCompact, isNot(contains('do not know')));
     });
 
     test('is materially shorter than the full prompt', () {

@@ -47,35 +47,32 @@ void main() {
     },
   );
 
-  test(
-    'the question order matches the database column order (#1381)',
-    () async {
-      final config = await ScoutConfigService().loadDefault();
-      final codes = config.allFields.map((f) => f.code).toList(growable: false);
-      expect(codes, <String>[
-        'scouter',
-        'matchNumber',
-        'robot',
-        'pTnumber',
-        'starting',
-        'autoFuelScored',
-        'auLow',
-        'teleopFuelScored',
-        'scoringEff',
-        'tRdefense',
-        'tRpasser',
-        'ePclimb',
-        'eLow',
-        'eMiddle',
-        'eHigh',
-        'ryCard',
-        'dieCard',
-        'comments',
-      ]);
-    },
-  );
+  test('the question order matches the database column order', () async {
+    final config = await ScoutConfigService().loadDefault();
+    final codes = config.allFields.map((f) => f.code).toList(growable: false);
+    expect(codes, <String>[
+      'scouter',
+      'matchNumber',
+      'robot',
+      'pTnumber',
+      'starting',
+      'autoFuelScored',
+      'auLow',
+      'teleopFuelScored',
+      'scoringEff',
+      'tRdefense',
+      'tRpasser',
+      'ePclimb',
+      'eLow',
+      'eMiddle',
+      'eHigh',
+      'ryCard',
+      'dieCard',
+      'comments',
+    ]);
+  });
 
-  test('scoring accuracy is a 0-100 slider stepping by 5 (#1381)', () async {
+  test('scoring accuracy is a 0-100 slider stepping by 5', () async {
     final config = await ScoutConfigService().loadDefault();
     final accuracy = config.allFields.firstWhere((f) => f.code == 'scoringEff');
     expect(accuracy.type, ScoutFieldType.range);
@@ -84,25 +81,22 @@ void main() {
     expect(accuracy.step, 5);
   });
 
-  test(
-    'climb position stays Not attempted/Outpost/Middle/Depot (#1381)',
-    () async {
-      final config = await ScoutConfigService().loadDefault();
-      final climbPosition = config.allFields.firstWhere(
-        (f) => f.code == 'ePclimb',
-      );
-      expect(climbPosition.retiredChoiceKeys, isEmpty);
-      expect(climbPosition.activeChoices.keys, <String>[
-        'N/A',
-        'Outpost',
-        'Middle',
-        'Depot',
-      ]);
-    },
-  );
+  test('climb position stays Not attempted/Outpost/Middle/Depot', () async {
+    final config = await ScoutConfigService().loadDefault();
+    final climbPosition = config.allFields.firstWhere(
+      (f) => f.code == 'ePclimb',
+    );
+    expect(climbPosition.retiredChoiceKeys, isEmpty);
+    expect(climbPosition.activeChoices.keys, <String>[
+      'N/A',
+      'Outpost',
+      'Middle',
+      'Depot',
+    ]);
+  });
 
   test('the climb level fields offer Not attempted/Failed/Successful, retiring '
-      'the old position choices (#1831)', () async {
+      'the old position choices', () async {
     final config = await ScoutConfigService().loadDefault();
     for (final code in <String>['eLow', 'eMiddle', 'eHigh']) {
       final field = config.allFields.firstWhere((f) => f.code == code);
@@ -115,7 +109,7 @@ void main() {
   });
 
   test(
-    'the card field offers None/Yellow/Red, retiring the old boolean (#1880)',
+    'the card field offers None/Yellow/Red, retiring the old boolean',
     () async {
       final config = await ScoutConfigService().loadDefault();
       final card = config.allFields.firstWhere((f) => f.code == 'ryCard');

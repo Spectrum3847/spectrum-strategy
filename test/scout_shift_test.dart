@@ -1042,8 +1042,7 @@ void main() {
   });
 
   testWidgets(
-    'resolved trade requests drop out of the list while a pending one stays '
-    '(#1408)',
+    'resolved trade requests drop out of the list while a pending one stays',
     (tester) async {
       final eventController = await _eventControllerWithMatches();
       addTearDown(eventController.dispose);
@@ -1128,8 +1127,7 @@ void main() {
   );
 
   testWidgets(
-    'accepting a trade shows a confirmation and marks the traded block '
-    '(#1455)',
+    'accepting a trade shows a confirmation and marks the traded block',
     (tester) async {
       final eventController = await _eventControllerWithMatches();
       addTearDown(eventController.dispose);
@@ -1212,7 +1210,7 @@ void main() {
 
   testWidgets(
     'the requester is told when the target resolves a trade remotely, not '
-    'just left watching the request vanish (#1891)',
+    'just left watching the request vanish',
     (tester) async {
       final eventController = await _eventControllerWithMatches();
       addTearDown(eventController.dispose);
@@ -1297,7 +1295,7 @@ void main() {
   );
 
   testWidgets(
-    'the target is told when the requester cancels a trade remotely (#1891)',
+    'the target is told when the requester cancels a trade remotely',
     (tester) async {
       final eventController = await _eventControllerWithMatches();
       addTearDown(eventController.dispose);
@@ -1388,7 +1386,7 @@ void main() {
 
   testWidgets(
     'a target with two signed-in devices sees the correct status when the '
-    'other device resolves the trade, not a hardcoded "cancelled" (#1891)',
+    'other device resolves the trade, not a hardcoded "cancelled"',
     (tester) async {
       final eventController = await _eventControllerWithMatches();
       addTearDown(eventController.dispose);
@@ -1472,7 +1470,7 @@ void main() {
 
   testWidgets(
     'a trade already pending before the screen ever mounts still gets a '
-    'remote-resolution snackbar (#1891)',
+    'remote-resolution snackbar',
     (tester) async {
       final eventController = await _eventControllerWithMatches();
       addTearDown(eventController.dispose);
@@ -1560,7 +1558,7 @@ void main() {
   );
 
   testWidgets('the trade requests section stays bounded so the schedule stays '
-      'reachable with many pending requests (#1408)', (tester) async {
+      'reachable with many pending requests', (tester) async {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);

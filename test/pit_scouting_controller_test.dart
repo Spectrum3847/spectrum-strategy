@@ -177,8 +177,7 @@ void main() {
     });
 
     test(
-      'saveEntry persists a document field\'s Worker key through fieldValues '
-      '(#1594)',
+      'saveEntry persists a document field\'s Worker key through fieldValues',
       () async {
         await controller.bootstrap();
         final entry = PitScoutEntry(

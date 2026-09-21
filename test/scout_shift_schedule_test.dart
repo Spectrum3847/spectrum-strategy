@@ -528,7 +528,7 @@ void main() {
     });
   });
 
-  group('generate around red cells (#1825)', () {
+  group('generate around red cells', () {
     ScheduleCellEdit red(int col, int match) =>
         ScheduleCellEdit(col: col, match: match, color: ScheduleCellColor.red);
 
