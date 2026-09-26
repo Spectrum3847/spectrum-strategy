@@ -1,0 +1,224 @@
+name: Build desktop (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        description: "Repo to check out (the mirror itself for nightly, the private repo for a release tag)"
+        type: string
+        required: true
+      ref:
+        description: "Git ref or sha to build"
+        type: string
+        required: true
+      channel:
+        description: "nightly bakes BUILD_DATE/BUILD_TIMESTAMP; release leaves them empty"
+        type: string
+        required: true
+      git_commit:
+        description: "Value for the GIT_COMMIT dart-define (the source commit, not necessarily HEAD of the checked-out ref -- a mirror snapshot commit is synthetic)"
+        type: string
+        required: true
+      git_branch:
+        description: "Value for the GIT_BRANCH dart-define"
+        type: string
+        required: true
+      needs_source_token:
+        description: "true when repository is the private repo and needs MIRROR_SOURCE_TOKEN to check out"
+        type: boolean
+        default: false
+      restore_docs_artifact:
+        description: "true when building from a mirror snapshot that stripped docs/ and needs the private-docs artifact restored"
+        type: boolean
+        default: false
+
+env:
+  FLUTTER_VERSION: 3.47.5
+
+jobs:
+  build:
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            runner: windows-latest
+            artifact: SpectrumStrategy-windows-x64.zip
+          - platform: macos
+            runner: macos-latest
+            artifact: SpectrumStrategy-macos.zip
+          - platform: linux
+            runner: ubuntu-latest
+            artifact: SpectrumStrategy-linux-x86_64.AppImage
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          token: ${{ inputs.needs_source_token && secrets.MIRROR_SOURCE_TOKEN || github.token }}
+          persist-credentials: false
+
+      - name: Restore private docs bundle
+        if: inputs.restore_docs_artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: private-docs
+      - name: Extract private docs bundle
+        if: inputs.restore_docs_artifact
+        run: tar -xzf private-docs.tar.gz && rm private-docs.tar.gz
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        timeout-minutes: 5
+        run: |
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev libx11-dev libxi-dev liblzma-dev build-essential \
+            libayatana-appindicator3-dev
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Build desktop app
+        shell: bash
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          CHANNEL: ${{ inputs.channel }}
+          GIT_BRANCH: ${{ inputs.git_branch }}
+          GIT_COMMIT: ${{ inputs.git_commit }}
+        run: |
+          git_commit="$GIT_COMMIT"
+          build_date=""
+          build_timestamp=""
+          if [ "${CHANNEL}" = "nightly" ]; then
+            build_date="$(date -u +%Y-%m-%d)"
+            build_timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          fi
+          build() {
+            flutter build ${{ matrix.platform }} --release \
+              --obfuscate --split-debug-info=build/symbols \
+              --dart-define=GIT_COMMIT="$git_commit" \
+              --dart-define=GIT_BRANCH="${GIT_BRANCH}" \
+              --dart-define=BUILD_DATE="$build_date" \
+              --dart-define=BUILD_TIMESTAMP="$build_timestamp" \
+              --dart-define=GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID}" \
+              --dart-define=GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET}" \
+              --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
+              --dart-define=POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
+          }
+          for attempt in 1 2 3; do
+            if build; then exit 0; fi
+            echo "Build attempt $attempt failed; retrying in 30s"
+            sleep 30
+          done
+          echo "Build failed after 3 attempts"
+          exit 1
+
+      - name: Verify VC++ Runtime DLLs (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $releaseDir = "build/windows/x64/runner/Release"
+          foreach ($dll in "vcruntime140.dll", "msvcp140.dll") {
+            $path = Join-Path $releaseDir $dll
+            if (!(Test-Path $path)) {
+              throw "VC++ Runtime DLL missing from the build output: $path"
+            }
+            Write-Host "Bundled $dll"
+          }
+
+      - name: Upload desktop obfuscation symbols
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.platform }}-symbols
+          path: build/symbols
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Package Windows build (unsigned ZIP)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          ARTIFACT: ${{ matrix.artifact }}
+        run: |
+          $releaseDir = "build/windows/x64/runner/Release"
+          Copy-Item "scripts/install-windows-start-menu.ps1" "$releaseDir/"
+          Compress-Archive -Path "$releaseDir/*" -DestinationPath $env:ARTIFACT
+
+          $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $env:ARTIFACT))
+          $hasScript = $zip.Entries.Name -contains 'install-windows-start-menu.ps1'
+          $zip.Dispose()
+          if (-not $hasScript) {
+            throw "install-windows-start-menu.ps1 is missing from $env:ARTIFACT"
+          }
+
+      - name: Package macOS build (unsigned .app zip)
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          app="$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "$app" ]; then echo "No .app bundle found"; exit 1; fi
+
+          ditto -c -k --sequesterRsrc --keepParent "$app" "${{ matrix.artifact }}"
+
+      - name: Package Linux build (AppImage)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="build/linux/x64/release/bundle"
+          appdir="AppDir"
+          mkdir -p "$appdir/usr/bin" "$appdir/usr/lib"
+          cp -r "$bundle"/* "$appdir/usr/bin/"
+
+          plugin="$(find "$appdir/usr/bin/lib" -name 'libtray_manager_plugin.so' -print -quit)"
+          if [ -n "$plugin" ]; then
+            ldd "$plugin" | awk '/ayatana|indicator|dbusmenu/ {print $3}' \
+              | xargs -r -I{} cp -L {} "$appdir/usr/lib/"
+          fi
+
+          bin="$(find "$appdir/usr/bin" -maxdepth 1 -type f -executable ! -name '*.so*' | head -1)"
+          binname="$(basename "$bin")"
+          cat > "$appdir/AppRun" <<EOF
+          #!/bin/bash
+          HERE="\$(dirname "\$(readlink -f "\$0")")"
+          export LD_LIBRARY_PATH="\$HERE/usr/lib:\${LD_LIBRARY_PATH:-}"
+          exec "\$HERE/usr/bin/$binname" "\$@"
+          EOF
+          chmod +x "$appdir/AppRun"
+          cat > "$appdir/spectrumstrategy.desktop" <<EOF
+          [Desktop Entry]
+          Name=Spectrum Strategy
+          Exec=$binname
+          Icon=spectrumstrategy
+          Type=Application
+          Categories=Utility;
+          EOF
+
+          icon="web/icons/Icon-512.png"
+          if [ ! -f "$icon" ]; then
+            icon="$(find . -path ./AppDir -prune -o -name '*.png' -print | head -1 || true)"
+          fi
+          if [ -n "$icon" ]; then cp "$icon" "$appdir/spectrumstrategy.png"; else
+            printf '\x89PNG\r\n\x1a\n' > "$appdir/spectrumstrategy.png"; fi
+          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$appdir" "${{ matrix.artifact }}"
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.platform }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error

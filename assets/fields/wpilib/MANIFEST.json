@@ -1,0 +1,11 @@
+{
+  "source": "https://github.com/wpilibsuite/allwpilib/tree/main/fields/src/main/native/resources/org/wpilib/fields/frc",
+  "latest": "2026-rebuilt",
+  "syncedAt": "2026-05-20T01:41:10Z",
+  "fields": [
+    {
+      "id": "2026-rebuilt",
+      "json": "assets/fields/wpilib/2026-rebuilt.json"
+    }
+  ]
+}
