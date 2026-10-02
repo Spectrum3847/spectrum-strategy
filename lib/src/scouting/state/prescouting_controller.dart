@@ -26,6 +26,8 @@ class PrescoutingController extends ChangeNotifier {
 
   final Set<String> _remoteSyncedIds = <String>{};
 
+  final Set<String> _rejectedIds = <String>{};
+
   final Map<String, int> _mutations = <String, int>{};
 
   final Map<String, PrescoutEntry> _confirmed = <String, PrescoutEntry>{};
@@ -39,6 +41,9 @@ class PrescoutingController extends ChangeNotifier {
   PrescoutingSyncStatus _syncStatus = const PrescoutingSyncStatus(
     state: PrescoutingSyncState.signedOut,
   );
+
+  bool _repushInFlight = false;
+  bool _repushPending = false;
 
   bool get isReady => _ready;
   List<PrescoutEntry> get entries => List<PrescoutEntry>.unmodifiable(_entries);
@@ -80,8 +85,15 @@ class PrescoutingController extends ChangeNotifier {
     final sync = _syncService;
     if (sync != null) {
       _statusSubscription = sync.statusStream.listen((status) {
+        final previousState = _syncStatus.state;
         _syncStatus = status;
         notifyListeners();
+
+        if (!_repushInFlight &&
+            status.state == PrescoutingSyncState.synced &&
+            previousState != PrescoutingSyncState.synced) {
+          unawaited(_repushUnsynced());
+        }
       });
       _remoteSubscription = sync.remoteEntriesStream.listen(_mergeRemote);
       _syncStatus = sync.status;
@@ -89,6 +101,10 @@ class PrescoutingController extends ChangeNotifier {
         await sync.initialize();
       } catch (_) {
         // Intentionally empty.
+      }
+
+      if (_syncStatus.state == PrescoutingSyncState.synced) {
+        unawaited(_repushUnsynced());
       }
 
       notifyListeners();
@@ -224,6 +240,46 @@ class PrescoutingController extends ChangeNotifier {
     }
     if (changed) {
       notifyListeners();
+    }
+  }
+
+  Future<void> _repushUnsynced() async {
+    if (_repushInFlight) {
+      _repushPending = true;
+      return;
+    }
+    _repushInFlight = true;
+    try {
+      do {
+        _repushPending = false;
+        final sync = _syncService;
+        if (sync == null) return;
+        final targetIds = _entries
+            .where(
+              (entry) =>
+                  !_remoteSyncedIds.contains(entry.id) &&
+                  !_rejectedIds.contains(entry.id),
+            )
+            .map((entry) => entry.id)
+            .toSet();
+        if (targetIds.isEmpty) continue;
+
+        await _saveQueue;
+        for (final id in targetIds) {
+          final index = _entries.indexWhere((entry) => entry.id == id);
+          if (index < 0) continue;
+          final snapshot = PrescoutEntry.fromJson(_entries[index].toJson());
+          await sync.push(snapshot);
+
+          if (sync.status.state == PrescoutingSyncState.rejected) {
+            _rejectedIds.add(id);
+          } else if (sync.status.state == PrescoutingSyncState.synced) {
+            _rejectedIds.remove(id);
+          }
+        }
+      } while (_repushPending);
+    } finally {
+      _repushInFlight = false;
     }
   }
 

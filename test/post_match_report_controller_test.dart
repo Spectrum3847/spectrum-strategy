@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spectrumstrategy/src/models/post_match_report.dart';
+import 'package:spectrumstrategy/src/services/post_match_report_sync_service.dart';
 import 'package:spectrumstrategy/src/state/post_match_report_controller.dart';
 
 import 'support/fake_post_match_report_storage.dart';
@@ -320,5 +321,205 @@ void main() {
         expect(controller.reportFor('2026miket', 'qm14').auto, 'local edit');
       },
     );
+  });
+
+  group('rejected vs offline sync', () {
+    test('a push the server rejects reports rejected, not offline', () async {
+      sync.simulateRejection = true;
+      await controller.save(
+        eventKey: '2026miket',
+        matchId: 'qm14',
+        auto: 'a',
+        teleop: '',
+        endgame: '',
+        notes: '',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushes, isEmpty);
+      expect(controller.syncStatus.state, PostMatchReportSyncState.rejected);
+    });
+
+    test('a 401-shaped failure still reports offline, not rejected', () async {
+      sync.simulateOutage = true;
+      await controller.save(
+        eventKey: '2026miket',
+        matchId: 'qm14',
+        auto: 'a',
+        teleop: '',
+        endgame: '',
+        notes: '',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushes, isEmpty);
+      expect(controller.syncStatus.state, PostMatchReportSyncState.offline);
+    });
+
+    test('a denied read reports noAccess', () async {
+      sync.emitStatus(
+        const PostMatchReportSyncStatus(
+          state: PostMatchReportSyncState.noAccess,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.syncStatus.state, PostMatchReportSyncState.noAccess);
+    });
+
+    test('a rejected report stops being retried once _repushUnsynced has seen '
+        'the rejection, and resumes only on a direct edit', () async {
+      sync.simulateRejection = true;
+      await controller.save(
+        eventKey: '2026miket',
+        matchId: 'qm14',
+        auto: 'a',
+        teleop: '',
+        endgame: '',
+        notes: '',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushes, isEmpty);
+
+      sync.emitStatus(
+        const PostMatchReportSyncStatus(
+          state: PostMatchReportSyncState.offline,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      sync.emitStatus(
+        const PostMatchReportSyncStatus(state: PostMatchReportSyncState.synced),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushes, isEmpty);
+
+      sync.simulateRejection = false;
+      sync.emitStatus(
+        const PostMatchReportSyncStatus(
+          state: PostMatchReportSyncState.offline,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      sync.emitStatus(
+        const PostMatchReportSyncStatus(state: PostMatchReportSyncState.synced),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushes, isEmpty);
+
+      await controller.save(
+        eventKey: '2026miket',
+        matchId: 'qm14',
+        auto: 'edited',
+        teleop: '',
+        endgame: '',
+        notes: '',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushes, hasLength(1));
+    });
+  });
+
+  group('persisted pending report ids', () {
+    test('a report confirmed by a remote snapshot is not re-pushed on the '
+        'next repush pass', () async {
+      await controller.save(
+        eventKey: '2026miket',
+        matchId: 'qm14',
+        auto: 'a',
+        teleop: '',
+        endgame: '',
+        notes: '',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushes, hasLength(1));
+
+      sync.emitRemote([
+        PostMatchReport(
+          id: '2026miket_qm14',
+          eventKey: '2026miket',
+          matchId: 'qm14',
+          auto: 'a',
+          updatedAt: sync.pushes.single.updatedAt,
+        ),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+      sync.pushes.clear();
+
+      sync.emitStatus(
+        const PostMatchReportSyncStatus(
+          state: PostMatchReportSyncState.offline,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      sync.emitStatus(
+        const PostMatchReportSyncStatus(state: PostMatchReportSyncState.synced),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushes, isEmpty);
+    });
+
+    test('bootstrap with an existing local report and no persisted pending '
+        'state pushes nothing', () async {
+      final freshStorage = FakePostMatchReportStorage();
+      await freshStorage.saveReport(
+        PostMatchReport(
+          id: '2026miket_qm1',
+          eventKey: '2026miket',
+          matchId: 'qm1',
+          auto: 'already on disk',
+          updatedAt: DateTime.utc(2026, 6, 1),
+        ),
+      );
+      final freshSync = FakePostMatchReportSyncService();
+      final freshController = await ready(freshSync, withStorage: freshStorage);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(freshSync.pushes, isEmpty);
+      addTearDown(freshController.dispose);
+    });
+
+    test('a report pending from a failed push is retried after relaunch, '
+        'and a report nobody edited is not', () async {
+      final sharedStorage = FakePostMatchReportStorage();
+
+      await sharedStorage.saveReport(
+        PostMatchReport(
+          id: '2026miket_qm1',
+          eventKey: '2026miket',
+          matchId: 'qm1',
+          auto: 'untouched',
+          updatedAt: DateTime.utc(2026, 6, 1),
+        ),
+      );
+
+      final firstSync = FakePostMatchReportSyncService()..simulateOutage = true;
+      final firstController = await ready(
+        firstSync,
+        withStorage: sharedStorage,
+      );
+      await firstController.save(
+        eventKey: '2026miket',
+        matchId: 'qm14',
+        auto: 'pending edit',
+        teleop: '',
+        endgame: '',
+        notes: '',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(firstSync.pushes, isEmpty);
+      firstController.dispose();
+
+      final relaunchSync = FakePostMatchReportSyncService();
+      final relaunched = await ready(relaunchSync, withStorage: sharedStorage);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(relaunchSync.pushes.map((r) => r.id), contains('2026miket_qm14'));
+      expect(
+        relaunchSync.pushes.map((r) => r.id),
+        isNot(contains('2026miket_qm1')),
+      );
+      addTearDown(relaunched.dispose);
+    });
   });
 }

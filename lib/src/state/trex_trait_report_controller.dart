@@ -25,6 +25,8 @@ class TrexTraitReportController extends ChangeNotifier {
 
   final Set<String> _remoteSyncedIds = <String>{};
 
+  final Set<String> _rejectedIds = <String>{};
+
   final FailedWriteTracker failedWrites = FailedWriteTracker();
   bool _ready = false;
   String? _lastError;
@@ -34,6 +36,9 @@ class TrexTraitReportController extends ChangeNotifier {
   TrexTraitReportSyncStatus _syncStatus = const TrexTraitReportSyncStatus(
     state: TrexTraitReportSyncState.signedOut,
   );
+
+  bool _repushInFlight = false;
+  bool _repushPending = false;
 
   bool get isReady => _ready;
   List<TrexTraitReport> get reports =>
@@ -80,8 +85,15 @@ class TrexTraitReportController extends ChangeNotifier {
     final sync = _syncService;
     if (sync == null) return;
     _statusSubscription = sync.statusStream.listen((status) {
+      final previousState = _syncStatus.state;
       _syncStatus = status;
       notifyListeners();
+
+      if (!_repushInFlight &&
+          status.state == TrexTraitReportSyncState.synced &&
+          previousState != TrexTraitReportSyncState.synced) {
+        unawaited(_repushUnsynced());
+      }
     });
     _remoteSubscription = sync.remoteReportsStream.listen(_mergeRemote);
     _syncStatus = sync.status;
@@ -89,6 +101,10 @@ class TrexTraitReportController extends ChangeNotifier {
       await sync.initialize();
     } catch (_) {
       // Intentionally empty.
+    }
+
+    if (_syncStatus.state == TrexTraitReportSyncState.synced) {
+      unawaited(_repushUnsynced());
     }
   }
 
@@ -198,6 +214,44 @@ class TrexTraitReportController extends ChangeNotifier {
     }
     if (syncedChanged) _persistSyncedIds();
     if (changed) notifyListeners();
+  }
+
+  Future<void> _repushUnsynced() async {
+    if (_repushInFlight) {
+      _repushPending = true;
+      return;
+    }
+    _repushInFlight = true;
+    try {
+      do {
+        _repushPending = false;
+        final sync = _syncService;
+        if (sync == null) return;
+        final targetIds = _reports.keys
+            .where(
+              (id) =>
+                  !_remoteSyncedIds.contains(id) && !_rejectedIds.contains(id),
+            )
+            .toSet();
+        if (targetIds.isEmpty) continue;
+
+        await _saveQueue;
+        for (final id in targetIds) {
+          final report = _reports[id];
+          if (report == null) continue;
+          final snapshot = TrexTraitReport.fromJson(report.toJson());
+          await sync.push(snapshot);
+
+          if (sync.status.state == TrexTraitReportSyncState.rejected) {
+            _rejectedIds.add(id);
+          } else if (sync.status.state == TrexTraitReportSyncState.synced) {
+            _rejectedIds.remove(id);
+          }
+        }
+      } while (_repushPending);
+    } finally {
+      _repushInFlight = false;
+    }
   }
 
   void _persistSyncedIds() {

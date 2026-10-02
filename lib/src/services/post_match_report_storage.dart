@@ -7,6 +7,9 @@ import '../models/post_match_report.dart';
 abstract class PostMatchReportStorage {
   Future<List<PostMatchReport>> loadAll();
   Future<void> saveReport(PostMatchReport report);
+
+  Future<Set<String>> loadPendingIds();
+  Future<void> savePendingIds(Set<String> ids);
 }
 
 class SharedPreferencesPostMatchReportStorage
@@ -14,6 +17,7 @@ class SharedPreferencesPostMatchReportStorage
   SharedPreferencesPostMatchReportStorage({this._preferences});
 
   static const String _reportsKey = 'post_match_reports_v1';
+  static const String _pendingIdsKey = 'post_match_reports_pending_v1';
 
   final SharedPreferences? _preferences;
 
@@ -64,5 +68,18 @@ class SharedPreferencesPostMatchReportStorage
     final data = await _readMap(prefs);
     data[report.id] = report.toJson();
     await _writeMap(prefs, data);
+  }
+
+  @override
+  Future<Set<String>> loadPendingIds() async {
+    final prefs = await _resolvedPreferences;
+    final raw = prefs.getStringList(_pendingIdsKey);
+    return raw == null ? <String>{} : raw.toSet();
+  }
+
+  @override
+  Future<void> savePendingIds(Set<String> ids) async {
+    final prefs = await _resolvedPreferences;
+    await prefs.setStringList(_pendingIdsKey, ids.toList());
   }
 }

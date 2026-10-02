@@ -623,6 +623,8 @@ class _AppShellState extends State<AppShell> {
         scoutingController: widget.scoutingController,
         configController: widget.configController,
         eventController: widget.eventController,
+        pitScoutingController: widget.pitScoutingController,
+        pitScoutConfigController: widget.pitScoutConfigController,
       ),
       PrematchTab(
         eventController: widget.eventController,

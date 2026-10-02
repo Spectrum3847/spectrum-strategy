@@ -30,6 +30,10 @@ class FakePickListSyncService implements PickListSyncService {
   int initializeCalls = 0;
   int syncNowCalls = 0;
 
+  bool simulateOutage = false;
+
+  bool simulateRejection = false;
+
   @override
   Stream<PickListSyncStatus> get statusStream => _statusController.stream;
 
@@ -57,7 +61,26 @@ class FakePickListSyncService implements PickListSyncService {
 
   @override
   Future<void> push(PickList list) async {
+    if (simulateRejection) {
+      emitStatus(
+        const PickListSyncStatus(
+          state: PickListSyncState.rejected,
+          error: 'permission-denied: push rejected',
+        ),
+      );
+      return;
+    }
+    if (simulateOutage) {
+      emitStatus(
+        const PickListSyncStatus(
+          state: PickListSyncState.offline,
+          error: 'push failed',
+        ),
+      );
+      return;
+    }
     pushed.add(list);
+    emitStatus(const PickListSyncStatus(state: PickListSyncState.synced));
   }
 
   @override
@@ -72,7 +95,26 @@ class FakePickListSyncService implements PickListSyncService {
 
   @override
   Future<void> delete(PickList list) async {
+    if (simulateRejection) {
+      emitStatus(
+        const PickListSyncStatus(
+          state: PickListSyncState.rejected,
+          error: 'permission-denied: delete rejected',
+        ),
+      );
+      return;
+    }
+    if (simulateOutage) {
+      emitStatus(
+        const PickListSyncStatus(
+          state: PickListSyncState.offline,
+          error: 'delete failed',
+        ),
+      );
+      return;
+    }
     deleted.add(list);
+    emitStatus(const PickListSyncStatus(state: PickListSyncState.synced));
   }
 
   @override

@@ -5,6 +5,8 @@ import { runAccuracy } from './crons/accuracy.mjs';
 import { runReport } from './crons/report.mjs';
 import { runScheduleMirror } from './crons/schedule_mirror.mjs';
 import { runUsage } from './crons/usage.mjs';
+import { runBackup } from './crons/backup.mjs';
+import { runCanary } from './crons/canary.mjs';
 
 const JOBS = {
   shift: {
@@ -18,6 +20,9 @@ const JOBS = {
     requires: ['FIREBASE_SERVICE_ACCOUNT', 'PIT_FIREBASE_SERVICE_ACCOUNT'],
   },
   usage: { run: runUsage, requires: ['FIREBASE_SERVICE_ACCOUNT'] },
+  backup: { run: runBackup, requires: ['FIREBASE_SERVICE_ACCOUNT'] },
+
+  canary: { run: runCanary, requires: ['FIREBASE_SERVICE_ACCOUNT'], critical: true },
 };
 
 function missingSecrets(env, name) {
@@ -30,15 +35,30 @@ async function runJob(env, name) {
   const missing = missingSecrets(env, name);
   if (missing.length > 0) {
     console.log(`${name}: skipping, ${missing.join(', ')} not set.`);
-    return { skipped: 'missing-secrets', missing };
+    const result = { skipped: 'missing-secrets', missing };
+    return job.critical
+      ? { ...result, failed: 1, failures: [`${name}: missing secret(s): ${missing.join(', ')}`] }
+      : result;
   }
 
   const ctx = createContext(env);
   try {
     const result = await job.run(ctx);
-    return withFailures(result, ctx);
+    const withF = withFailures(result, ctx);
+    if (job.critical && !withF.failed && withF.ok !== true) {
+
+      return {
+        ...withF,
+        failed: 1,
+        failures: [
+          ...(withF.failures || []),
+          `${name}: run did not reach a verified success (${JSON.stringify(withF)})`,
+        ],
+      };
+    }
+    return withF;
   } catch (err) {
-    if (err instanceof FirestoreQuotaError) {
+    if (err instanceof FirestoreQuotaError && !job.critical) {
       console.log(`${name}: Firestore quota exhausted; skipping and retrying next run.`);
       return withFailures({ skipped: 'quota' }, ctx);
     }

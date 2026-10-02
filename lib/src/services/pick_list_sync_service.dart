@@ -1,11 +1,21 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart' show PlatformException;
 
 import '../models/pick_list.dart';
 import 'spectrum_auth_service.dart';
 
-enum PickListSyncState { signedOut, noAccess, syncing, synced, offline }
+enum PickListSyncState {
+  signedOut,
+
+  noAccess,
+  syncing,
+  synced,
+  offline,
+
+  rejected,
+}
 
 class PickListSyncStatus {
   const PickListSyncStatus({
@@ -18,6 +28,19 @@ class PickListSyncStatus {
   final DateTime? lastSyncedAt;
   final String? error;
 }
+
+bool _isPermissionDenied(Object error) {
+  final errorText = error.toString().toLowerCase();
+  return (error is FirebaseException && error.code == 'permission-denied') ||
+      (error is PlatformException && error.code == 'permission-denied') ||
+      (errorText.contains('permission') && errorText.contains('denied'));
+}
+
+String _permissionErrorMessage(Object error) => switch (error) {
+  FirebaseException(:final message) => message ?? error.toString(),
+  PlatformException(:final message) => message ?? error.toString(),
+  _ => error.toString(),
+};
 
 abstract class PickListSyncService {
   Stream<PickListSyncStatus> get statusStream;
@@ -113,13 +136,7 @@ class FirestorePickListSyncService implements PickListSyncService {
         ),
       );
     } catch (error) {
-      _emit(
-        PickListSyncStatus(
-          state: PickListSyncState.offline,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.toString(),
-        ),
-      );
+      _emit(_pushOrDeleteFailure(error));
     }
   }
 
@@ -159,21 +176,9 @@ class FirestorePickListSyncService implements PickListSyncService {
         await push(list);
         return;
       }
-      _emit(
-        PickListSyncStatus(
-          state: PickListSyncState.offline,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.toString(),
-        ),
-      );
+      _emit(_pushOrDeleteFailure(error));
     } catch (error) {
-      _emit(
-        PickListSyncStatus(
-          state: PickListSyncState.offline,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.toString(),
-        ),
-      );
+      _emit(_pushOrDeleteFailure(error));
     }
   }
 
@@ -193,14 +198,23 @@ class FirestorePickListSyncService implements PickListSyncService {
         ),
       );
     } catch (error) {
-      _emit(
-        PickListSyncStatus(
-          state: PickListSyncState.offline,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.toString(),
-        ),
+      _emit(_pushOrDeleteFailure(error));
+    }
+  }
+
+  PickListSyncStatus _pushOrDeleteFailure(Object error) {
+    if (_isPermissionDenied(error)) {
+      return PickListSyncStatus(
+        state: PickListSyncState.rejected,
+        lastSyncedAt: _status.lastSyncedAt,
+        error: _permissionErrorMessage(error),
       );
     }
+    return PickListSyncStatus(
+      state: PickListSyncState.offline,
+      lastSyncedAt: _status.lastSyncedAt,
+      error: error.toString(),
+    );
   }
 
   @override

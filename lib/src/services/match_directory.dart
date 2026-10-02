@@ -96,6 +96,8 @@ class SharedPreferencesMatchDirectory implements MatchDirectory {
 
   static const String _legacyDraftKey = 'strategy_session_draft';
 
+  static const String _pendingBoardIdsKey = 'strategy_pending_board_ids_v1';
+
   final SharedPreferences? _preferences;
 
   Future<void>? _migrationFuture;
@@ -389,6 +391,19 @@ class SharedPreferencesMatchDirectory implements MatchDirectory {
     final prefs = await _resolvedPreferences;
     await _migrateIfNeeded(prefs);
     return prefs.getString(_activeKey);
+  }
+
+  Future<Set<String>> loadPendingBoardIds() async {
+    final prefs = await _resolvedPreferences;
+    await _migrateIfNeeded(prefs);
+    final raw = prefs.getStringList(_pendingBoardIdsKey);
+    return raw == null ? <String>{} : raw.toSet();
+  }
+
+  Future<void> savePendingBoardIds(Set<String> ids) async {
+    final prefs = await _resolvedPreferences;
+    await _migrateIfNeeded(prefs);
+    await prefs.setStringList(_pendingBoardIdsKey, ids.toList());
   }
 
   @override

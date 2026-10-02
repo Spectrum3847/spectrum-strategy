@@ -130,7 +130,7 @@ class DesktopPrescoutingSyncService implements PrescoutingSyncService {
       _emitSynced();
     } catch (error) {
       await _queue.mark('prescoutEntries', stamped.id);
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     } finally {
       _inFlightWrites.endWrite(stamped.id, token);
     }
@@ -159,7 +159,7 @@ class DesktopPrescoutingSyncService implements PrescoutingSyncService {
       _emitSynced();
     } catch (error) {
       await _queue.mark(_deletedCollection, id);
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     } finally {
       _inFlightWrites.endWrite(id, token);
     }
@@ -293,11 +293,26 @@ class DesktopPrescoutingSyncService implements PrescoutingSyncService {
     );
   }
 
-  void _emitFailure(Object error) {
+  void _emitFailure(Object error, {bool isWrite = false}) {
     _pollScheduler.onFailure();
+    if (isWrite &&
+        error is fc.FirestoreApiException &&
+        (error.statusCode == 403 || error.status == 'PERMISSION_DENIED')) {
+      _emit(
+        PrescoutingSyncStatus(
+          state: PrescoutingSyncState.rejected,
+          lastSyncedAt: _status.lastSyncedAt,
+          error: error.message,
+        ),
+      );
+      return;
+    }
 
-    if (error is fc.FirestoreApiException &&
-        (error.statusCode == 403 || error.statusCode == 401)) {
+    if (!isWrite &&
+        error is fc.FirestoreApiException &&
+        (error.statusCode == 403 ||
+            error.statusCode == 401 ||
+            error.status == 'PERMISSION_DENIED')) {
       _emit(
         PrescoutingSyncStatus(
           state: PrescoutingSyncState.noAccess,

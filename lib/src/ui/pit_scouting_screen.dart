@@ -419,13 +419,22 @@ class _PitScoutingScreenState extends State<PitScoutingScreen> {
       PitScoutingSyncState.syncing => ('Syncing...', Icons.sync_rounded),
       PitScoutingSyncState.synced => ('Synced', Icons.cloud_done_rounded),
       PitScoutingSyncState.offline => ('Offline', Icons.cloud_off_rounded),
+      PitScoutingSyncState.rejected => (
+        status.error != null ? 'Not accepted: ${status.error}' : 'Not accepted',
+        Icons.report_gmailerrorred_rounded,
+      ),
     };
+    final isRejected = status.state == PitScoutingSyncState.rejected;
+    final colorScheme = Theme.of(context).colorScheme;
+    final ink = isRejected ? colorScheme.error : colorScheme.onSurface;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.secondary,
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        color: colorScheme.secondary,
+        border: Border.all(
+          color: isRejected ? colorScheme.error : colorScheme.outline,
+        ),
         borderRadius: const BorderRadius.all(
           Radius.circular(StrategyPalette.radiusSm),
         ),
@@ -433,10 +442,12 @@ class _PitScoutingScreenState extends State<PitScoutingScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: Theme.of(context).colorScheme.onSurface),
+          Icon(icon, size: 16, color: ink),
           const SizedBox(width: 8),
 
-          Flexible(child: Text(label)),
+          Flexible(
+            child: Text(label, style: TextStyle(color: ink)),
+          ),
         ],
       ),
     );

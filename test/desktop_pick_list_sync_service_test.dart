@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:spectrumstrategy/src/models/pick_list.dart';
 import 'package:spectrumstrategy/src/services/desktop_pick_list_sync_service.dart';
+import 'package:spectrumstrategy/src/services/pick_list_sync_service.dart';
 import 'package:spectrumstrategy/src/services/spectrum_auth_service.dart';
 
 import 'support/fake_pending_push_queue.dart';
@@ -559,5 +560,25 @@ void main() {
 
     expect(snapshots.expand((e) => e), isEmpty);
     await service.dispose();
+  });
+
+  test('a permission-denied push reads as rejected, not offline', () async {
+    final service = DesktopPickListSyncService(
+      authService: _signedInAuth(),
+      firestore: _firestore(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {'code': 403, 'message': 'denied'},
+            }),
+            403,
+          ),
+        ),
+      ),
+      pendingPushQueue: FakePendingPushQueue(),
+    );
+    await service.push(list);
+
+    expect(service.status.state, PickListSyncState.rejected);
   });
 }

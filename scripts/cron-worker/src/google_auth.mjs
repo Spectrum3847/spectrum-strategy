@@ -119,4 +119,38 @@ function clearTokenCacheForTests() {
   inflightMints.clear();
 }
 
-export { getAccessToken, signServiceAccountJwt, clearTokenCacheForTests, SCOPE, TOKEN_URL };
+const CUSTOM_TOKEN_AUDIENCE =
+  'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
+const CUSTOM_TOKEN_LIFETIME_SECONDS = 3600;
+
+async function mintCustomToken(serviceAccount, uid, { nowSeconds } = {}) {
+  const now = nowSeconds ?? Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const iat = now - CLOCK_SKEW_SECONDS;
+  const claims = {
+    iss: serviceAccount.client_email,
+    sub: serviceAccount.client_email,
+    aud: CUSTOM_TOKEN_AUDIENCE,
+    iat,
+
+    exp: iat + CUSTOM_TOKEN_LIFETIME_SECONDS,
+    uid,
+  };
+  const signingInput = `${base64UrlEncodeJson(header)}.${base64UrlEncodeJson(claims)}`;
+  const key = await importPrivateKey(serviceAccount.private_key);
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    key,
+    new TextEncoder().encode(signingInput),
+  );
+  return `${signingInput}.${base64UrlEncodeBytes(new Uint8Array(signature))}`;
+}
+
+export {
+  getAccessToken,
+  signServiceAccountJwt,
+  mintCustomToken,
+  clearTokenCacheForTests,
+  SCOPE,
+  TOKEN_URL,
+};

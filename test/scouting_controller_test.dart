@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:statbotics_client/statbotics_client.dart';
 
 import 'package:spectrumstrategy/src/scouting/models/scout_entry.dart';
 import 'package:spectrumstrategy/src/scouting/services/scouting_sync_service.dart';
@@ -149,6 +150,366 @@ void main() {
     expect(controller.entries.first.teamNumber, 3847);
     expect(storage.rawEntries, hasLength(1));
     expect(notifyCount, greaterThanOrEqualTo(1));
+  });
+
+  group('backfillMatchKeys', () {
+    test(
+      'resolves tbaMatchKey for an entry saved before the schedule loaded',
+      () async {
+        final storage = FakeScoutingStorage();
+        final controller = ScoutingController(storage: storage);
+        await controller.bootstrap();
+
+        await controller.saveEntry(
+          ScoutEntry(
+            matchId: 'session-1',
+            teamNumber: 3847,
+            fieldValues: <String, dynamic>{'matchNumber': '12', 'robot': 'R1'},
+          ),
+        );
+        expect(controller.entries.single.tbaMatchKey, isNull);
+
+        await controller.backfillMatchKeys(<StatboticsMatch>[
+          StatboticsMatch(
+            key: '2026test_qm12',
+            event: '2026test',
+            matchNumber: 12,
+            compLevel: 'qm',
+            redTeams: const <int>[3847, 2714, 245],
+            blueTeams: const <int>[33, 67, 111],
+          ),
+        ]);
+
+        expect(controller.entries.single.tbaMatchKey, '2026test_qm12');
+        final persisted = await storage.loadAll();
+        expect(persisted.single.tbaMatchKey, '2026test_qm12');
+      },
+    );
+
+    test('leaves an entry with no typed match number alone', () async {
+      final storage = FakeScoutingStorage();
+      final controller = ScoutingController(storage: storage);
+      await controller.bootstrap();
+
+      await controller.saveEntry(
+        ScoutEntry(matchId: 'session-1', teamNumber: 3847),
+      );
+
+      await controller.backfillMatchKeys(<StatboticsMatch>[
+        StatboticsMatch(
+          key: '2026test_qm12',
+          event: '2026test',
+          matchNumber: 12,
+          compLevel: 'qm',
+          redTeams: const <int>[3847, 2714, 245],
+          blueTeams: const <int>[33, 67, 111],
+        ),
+      ]);
+
+      expect(controller.entries.single.tbaMatchKey, isNull);
+    });
+
+    test('leaves an already-resolved entry untouched', () async {
+      final storage = FakeScoutingStorage();
+      final controller = ScoutingController(storage: storage);
+      await controller.bootstrap();
+
+      await controller.saveEntry(
+        ScoutEntry(
+          matchId: 'session-1',
+          teamNumber: 3847,
+          tbaMatchKey: '2026test_qm3',
+          fieldValues: <String, dynamic>{'matchNumber': '12'},
+        ),
+      );
+
+      await controller.backfillMatchKeys(<StatboticsMatch>[
+        StatboticsMatch(
+          key: '2026test_qm12',
+          event: '2026test',
+          matchNumber: 12,
+          compLevel: 'qm',
+          redTeams: const <int>[3847, 2714, 245],
+          blueTeams: const <int>[33, 67, 111],
+        ),
+      ]);
+
+      expect(controller.entries.single.tbaMatchKey, '2026test_qm3');
+    });
+
+    test('is a no-op when no matches are given', () async {
+      final storage = FakeScoutingStorage();
+      final controller = ScoutingController(storage: storage);
+      await controller.bootstrap();
+
+      await controller.saveEntry(
+        ScoutEntry(
+          matchId: 'session-1',
+          teamNumber: 3847,
+          fieldValues: <String, dynamic>{'matchNumber': '12'},
+        ),
+      );
+
+      await controller.backfillMatchKeys(const <StatboticsMatch>[]);
+
+      expect(controller.entries.single.tbaMatchKey, isNull);
+    });
+  });
+
+  group('nextMatchNumberFor', () {
+    const event = '2026test';
+
+    StatboticsMatch qm(int number) => StatboticsMatch(
+      key: '${event}_qm$number',
+      event: event,
+      matchNumber: number,
+      compLevel: 'qm',
+      redTeams: const <int>[1, 2, 3],
+      blueTeams: const <int>[4, 5, 6],
+    );
+
+    ScoutEntry entryAt({
+      required int number,
+      required String station,
+      int teamNumber = 1,
+      String eventKey = event,
+    }) => ScoutEntry(
+      matchId: 'session-$number-$station',
+      teamNumber: teamNumber,
+      tbaMatchKey: '${eventKey}_qm$number',
+      fieldValues: <String, dynamic>{'robot': station},
+    );
+
+    test(
+      'defaults to the first scheduled match with nothing saved yet',
+      () async {
+        final controller = ScoutingController(storage: FakeScoutingStorage());
+        await controller.bootstrap();
+
+        expect(
+          controller.nextMatchNumberFor(
+            station: 'R1',
+            schedule: <StatboticsMatch>[qm(19), qm(20), qm(21), qm(22)],
+          ),
+          19,
+        );
+      },
+    );
+
+    test('a station that skipped a match is offered the number the rest of '
+        'the team has already reached, not the one it skipped', () async {
+      final controller = ScoutingController(storage: FakeScoutingStorage());
+      await controller.bootstrap();
+
+      await controller.saveEntry(entryAt(number: 19, station: 'R1'));
+      await controller.saveEntry(entryAt(number: 21, station: 'R2'));
+      await controller.saveEntry(entryAt(number: 21, station: 'R3'));
+
+      expect(
+        controller.nextMatchNumberFor(
+          station: 'R1',
+          schedule: <StatboticsMatch>[qm(19), qm(20), qm(21), qm(22)],
+        ),
+        21,
+      );
+    });
+
+    test('a station that just saved a match the rest of the team is also on '
+        'is offered the next one', () async {
+      final controller = ScoutingController(storage: FakeScoutingStorage());
+      await controller.bootstrap();
+      await controller.saveEntry(entryAt(number: 20, station: 'R1'));
+      await controller.saveEntry(entryAt(number: 20, station: 'R2'));
+
+      expect(
+        controller.nextMatchNumberFor(
+          station: 'R1',
+          schedule: <StatboticsMatch>[qm(19), qm(20), qm(21), qm(22)],
+        ),
+        21,
+      );
+    });
+
+    test('a station behind the rest of the team is offered where the team '
+        'already is, not one past its own last save', () async {
+      final controller = ScoutingController(storage: FakeScoutingStorage());
+      await controller.bootstrap();
+      await controller.saveEntry(entryAt(number: 20, station: 'R1'));
+      await controller.saveEntry(entryAt(number: 21, station: 'R2'));
+
+      expect(
+        controller.nextMatchNumberFor(
+          station: 'R1',
+          schedule: <StatboticsMatch>[qm(19), qm(20), qm(21), qm(22)],
+        ),
+        21,
+      );
+    });
+
+    test('one station picking the wrong match does not move every other '
+        "station's default", () async {
+      final controller = ScoutingController(storage: FakeScoutingStorage());
+      await controller.bootstrap();
+      await controller.saveEntry(entryAt(number: 19, station: 'R1'));
+      await controller.saveEntry(entryAt(number: 19, station: 'R2'));
+
+      await controller.saveEntry(entryAt(number: 50, station: 'B1'));
+
+      expect(
+        controller.nextMatchNumberFor(
+          station: 'R1',
+          schedule: <StatboticsMatch>[qm(19), qm(20), qm(21), qm(50), qm(51)],
+        ),
+        20,
+      );
+    });
+
+    test('a device with only its own entries, offline, still advances past '
+        'them', () async {
+      final controller = ScoutingController(storage: FakeScoutingStorage());
+      await controller.bootstrap();
+      await controller.saveEntry(entryAt(number: 19, station: 'R1'));
+      await controller.saveEntry(entryAt(number: 20, station: 'R1'));
+
+      expect(
+        controller.nextMatchNumberFor(
+          station: 'R1',
+          schedule: <StatboticsMatch>[qm(19), qm(20), qm(21), qm(22)],
+        ),
+        21,
+      );
+    });
+
+    test('reads the station a TBA-team-and-robot field carries when the '
+        'form has no robot select', () async {
+      final controller = ScoutingController(storage: FakeScoutingStorage());
+      await controller.bootstrap();
+      await controller.saveEntry(
+        ScoutEntry(
+          matchId: 'combined-19',
+          teamNumber: 1,
+          tbaMatchKey: '${event}_qm19',
+          fieldValues: <String, dynamic>{
+            'teamAndRobot': <String, dynamic>{
+              'teamNumber': 1,
+              'robotPosition': 'R1',
+            },
+          },
+        ),
+      );
+
+      expect(
+        controller.nextMatchNumberFor(
+          station: ScoutingController.stationOf(<String, dynamic>{
+            'teamAndRobot': <String, dynamic>{'robotPosition': 'R1'},
+          }),
+          schedule: <StatboticsMatch>[qm(19), qm(20), qm(21)],
+        ),
+        20,
+      );
+    });
+
+    test('with no readable station it defers to the caller rather than '
+        'resetting to the first match', () async {
+      final controller = ScoutingController(storage: FakeScoutingStorage());
+      await controller.bootstrap();
+      await controller.saveEntry(entryAt(number: 19, station: 'R1'));
+
+      expect(
+        controller.nextMatchNumberFor(
+          station: '',
+          schedule: <StatboticsMatch>[qm(19), qm(20), qm(21)],
+        ),
+        isNull,
+      );
+    });
+
+    test('an entry with an unreadable station cannot corroborate one '
+        "station's wrong pick", () async {
+      final controller = ScoutingController(storage: FakeScoutingStorage());
+      await controller.bootstrap();
+      await controller.saveEntry(entryAt(number: 19, station: 'R1'));
+      await controller.saveEntry(entryAt(number: 19, station: 'R2'));
+      await controller.saveEntry(entryAt(number: 50, station: 'B1'));
+      await controller.saveEntry(entryAt(number: 50, station: ''));
+
+      expect(
+        controller.nextMatchNumberFor(
+          station: 'R1',
+          schedule: <StatboticsMatch>[qm(19), qm(20), qm(50), qm(51)],
+        ),
+        20,
+      );
+    });
+
+    test('entries from another event are ignored', () async {
+      final controller = ScoutingController(storage: FakeScoutingStorage());
+      await controller.bootstrap();
+
+      await controller.saveEntry(
+        entryAt(number: 55, station: 'R2', eventKey: '2026other'),
+      );
+
+      expect(
+        controller.nextMatchNumberFor(
+          station: 'R1',
+          schedule: <StatboticsMatch>[qm(19), qm(20), qm(21), qm(22)],
+        ),
+        19,
+      );
+    });
+
+    test('unresolved entries (no tbaMatchKey) are ignored', () async {
+      final controller = ScoutingController(storage: FakeScoutingStorage());
+      await controller.bootstrap();
+      await controller.saveEntry(
+        ScoutEntry(
+          matchId: 'session-1',
+          teamNumber: 1,
+          fieldValues: <String, dynamic>{'matchNumber': '55', 'robot': 'R2'},
+        ),
+      );
+
+      expect(
+        controller.nextMatchNumberFor(
+          station: 'R1',
+          schedule: <StatboticsMatch>[qm(19), qm(20), qm(21), qm(22)],
+        ),
+        19,
+      );
+    });
+
+    test('returns null once a station has saved every match at or past the '
+        "team's progress", () async {
+      final controller = ScoutingController(storage: FakeScoutingStorage());
+      await controller.bootstrap();
+      await controller.saveEntry(entryAt(number: 21, station: 'R1'));
+      await controller.saveEntry(entryAt(number: 22, station: 'R1'));
+
+      expect(
+        controller.nextMatchNumberFor(
+          station: 'R1',
+          schedule: <StatboticsMatch>[qm(19), qm(20), qm(21), qm(22)],
+        ),
+        isNull,
+      );
+    });
+
+    test(
+      'returns null when the schedule carries no qualification matches',
+      () async {
+        final controller = ScoutingController(storage: FakeScoutingStorage());
+        await controller.bootstrap();
+
+        expect(
+          controller.nextMatchNumberFor(
+            station: 'R1',
+            schedule: const <StatboticsMatch>[],
+          ),
+          isNull,
+        );
+      },
+    );
   });
 
   group('entriesRevision', () {
@@ -510,9 +871,8 @@ void main() {
       );
       await controller.bootstrap();
 
-      await controller.saveEntry(
-        ScoutEntry(matchId: 'match-1', teamNumber: 971),
-      );
+      final rejectedEntry = ScoutEntry(matchId: 'match-1', teamNumber: 971);
+      await controller.saveEntry(rejectedEntry);
       await Future<void>.delayed(Duration.zero);
 
       expect(controller.entries, hasLength(1));
@@ -526,8 +886,13 @@ void main() {
       );
       await Future<void>.delayed(Duration.zero);
 
-      expect(sync.pushed.map((e) => e.teamNumber).toSet(), <int>{971, 254});
+      expect(sync.pushed.map((e) => e.teamNumber).toSet(), <int>{254});
       expect(sync.status.state, ScoutingSyncState.synced);
+
+      await controller.saveEntry(rejectedEntry.copyWith(notes: 'edited'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushed.map((e) => e.teamNumber).toSet(), <int>{254, 971});
       expect(controller.failedWrites.hasFailures, isFalse);
     },
   );
@@ -911,6 +1276,43 @@ void main() {
 
       expect(sync.pushed, isEmpty);
     });
+
+    test(
+      'a rejected id is not retried by a later synced status tick',
+      () async {
+        final storage = FakeScoutingStorage();
+        await storage.saveEntry(
+          ScoutEntry(id: 'e-1', matchId: 'match-1', teamNumber: 1),
+        );
+        final sync = FakeScoutingSyncService(
+          initialState: ScoutingSyncState.signedOut,
+        )..simulateRejection = true;
+        final controller = ScoutingController(
+          storage: storage,
+          syncService: sync,
+        );
+        await controller.bootstrap();
+        await Future<void>.delayed(Duration.zero);
+
+        sync.emitStatus(
+          const ScoutingSyncStatus(state: ScoutingSyncState.synced),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(sync.pushed, isEmpty);
+
+        sync.simulateRejection = false;
+        sync.emitStatus(
+          const ScoutingSyncStatus(state: ScoutingSyncState.offline),
+        );
+        await Future<void>.delayed(Duration.zero);
+        sync.emitStatus(
+          const ScoutingSyncStatus(state: ScoutingSyncState.synced),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(sync.pushed, isEmpty);
+      },
+    );
 
     test('the signedOut -> syncing -> synced handshake after a relaunch '
         're-pushes unconfirmed entries', () async {

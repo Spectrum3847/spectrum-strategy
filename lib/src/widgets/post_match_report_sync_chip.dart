@@ -10,6 +10,18 @@ class PostMatchReportSyncChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (status.state == PostMatchReportSyncState.rejected) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: SyncStatusPill(
+          label: 'Not accepted',
+          icon: Icons.report_gmailerrorred_rounded,
+          isFailure: true,
+          tooltip: status.error,
+        ),
+      );
+    }
+
     final (String label, IconData icon) = switch (status.state) {
       PostMatchReportSyncState.signedOut => (
         'Not signed in to sync',
@@ -22,6 +34,10 @@ class PostMatchReportSyncChip extends StatelessWidget {
       PostMatchReportSyncState.syncing => ('Syncing...', Icons.sync_rounded),
       PostMatchReportSyncState.synced => ('Synced', Icons.cloud_done_rounded),
       PostMatchReportSyncState.offline => ('Offline', Icons.cloud_off_rounded),
+      PostMatchReportSyncState.rejected => (
+        'Not accepted',
+        Icons.report_gmailerrorred_rounded,
+      ),
     };
     return Align(
       alignment: Alignment.centerLeft,

@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../services/match_id_resolver.dart';
+import '../../state/event_controller.dart';
 import '../../theme/strategy_palette.dart';
 import '../models/scout_config.dart';
 import '../models/scout_entry.dart';
@@ -16,11 +18,18 @@ bool get _isDesktop =>
         defaultTargetPlatform == TargetPlatform.linux);
 
 class ScoutQrScanScreen extends StatefulWidget {
-  const ScoutQrScanScreen({required this.controller, this.config, super.key});
+  const ScoutQrScanScreen({
+    required this.controller,
+    required this.eventController,
+    this.config,
+    super.key,
+  });
 
   final ScoutingController controller;
 
   final ScoutConfig? config;
+
+  final EventController eventController;
 
   @override
   State<ScoutQrScanScreen> createState() => _ScoutQrScanScreenState();
@@ -66,10 +75,20 @@ class _ScoutQrScanScreenState extends State<ScoutQrScanScreen> {
             (values['team'] as num?)?.toInt() ??
             (values['teamNumber'] as num?)?.toInt() ??
             0;
+
+        final tbaMatchKey = _resolveTbaMatchKey(values, teamNum);
+        final typedMatchNumber = values['matchNumber']?.toString().trim() ?? '';
+        if (tbaMatchKey == null && typedMatchNumber.isEmpty) {
+          _errorMessage =
+              'Scanned data has no match number, so it cannot be identified. '
+              'Ask the scouter to fill in the match number and rescan.';
+          return null;
+        }
         return ScoutEntry(
           matchId: '',
           teamNumber: teamNum,
           fieldValues: values,
+          tbaMatchKey: tbaMatchKey,
         );
       }
     }
@@ -79,6 +98,16 @@ class _ScoutQrScanScreenState extends State<ScoutQrScanScreen> {
       _errorMessage = error.message;
       return null;
     }
+  }
+
+  String? _resolveTbaMatchKey(Map<String, dynamic> values, int teamNum) {
+    if (!widget.eventController.hasMatches) return null;
+    final typed = values['matchNumber']?.toString().trim() ?? '';
+    final station = values['robot']?.toString().trim() ?? '';
+    final match = MatchIdResolver(widget.eventController.matches)
+        .resolveWithTiebreak(typed, station: station, teamNumber: teamNum);
+    final key = match?.key ?? '';
+    return key.isNotEmpty ? key : null;
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
@@ -116,13 +145,13 @@ class _ScoutQrScanScreenState extends State<ScoutQrScanScreen> {
   }
 
   Future<void> _onDesktopSubmit(String raw) async {
-    final trimmed = raw.trim();
+    final payload = raw.replaceAll(RegExp(r'[\r\n]+$'), '');
     _pasteController.clear();
     _scanFocus.requestFocus();
-    if (trimmed.isEmpty) return;
+    if (payload.trim().isEmpty) return;
 
     _errorMessage = null;
-    final decoded = _decode(trimmed);
+    final decoded = _decode(payload);
     if (decoded == null) {
       setState(
         () => _errorMessage ??= 'Could not read scout data from that payload.',

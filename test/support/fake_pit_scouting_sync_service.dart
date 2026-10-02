@@ -28,6 +28,10 @@ class FakePitScoutingSyncService implements PitScoutingSyncService {
   int initializeCalls = 0;
   int syncNowCalls = 0;
 
+  bool simulateOutage = false;
+
+  bool simulateRejection = false;
+
   @override
   Stream<PitScoutingSyncStatus> get statusStream => _statusController.stream;
 
@@ -56,12 +60,50 @@ class FakePitScoutingSyncService implements PitScoutingSyncService {
 
   @override
   Future<void> push(PitScoutEntry entry) async {
+    if (simulateRejection) {
+      emitStatus(
+        const PitScoutingSyncStatus(
+          state: PitScoutingSyncState.rejected,
+          error: 'permission-denied: push rejected',
+        ),
+      );
+      return;
+    }
+    if (simulateOutage) {
+      emitStatus(
+        const PitScoutingSyncStatus(
+          state: PitScoutingSyncState.offline,
+          error: 'push failed',
+        ),
+      );
+      return;
+    }
     pushed.add(entry);
+    emitStatus(const PitScoutingSyncStatus(state: PitScoutingSyncState.synced));
   }
 
   @override
   Future<void> delete(PitScoutEntry entry) async {
+    if (simulateRejection) {
+      emitStatus(
+        const PitScoutingSyncStatus(
+          state: PitScoutingSyncState.rejected,
+          error: 'permission-denied: delete rejected',
+        ),
+      );
+      return;
+    }
+    if (simulateOutage) {
+      emitStatus(
+        const PitScoutingSyncStatus(
+          state: PitScoutingSyncState.offline,
+          error: 'delete failed',
+        ),
+      );
+      return;
+    }
     deleted.add(entry);
+    emitStatus(const PitScoutingSyncStatus(state: PitScoutingSyncState.synced));
   }
 
   @override

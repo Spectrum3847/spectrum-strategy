@@ -910,11 +910,11 @@ void main() {
         syncService: sync,
       );
       await controller.bootstrap();
+      expect(sync.pushed, isEmpty);
 
       controller.setMatchNumber('7');
       controller.setAlliance('Blue');
       controller.setEventName('Test Event');
-      expect(sync.pushed, isEmpty);
 
       await settle();
       expect(sync.pushed, hasLength(1));
@@ -928,6 +928,7 @@ void main() {
         syncService: sync,
       );
       await controller.bootstrap();
+      expect(sync.pushed, isEmpty);
 
       controller.setEventName('Flushed Event');
       controller.dispose();
@@ -1041,6 +1042,171 @@ void main() {
       expect(json['authorUid'], 'uid-1');
       expect(json['authorDisplayName'], '');
     });
+  });
+
+  group('board sync rejected vs offline', () {
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 700));
+
+    test('a push the server rejects reports rejected, not offline', () async {
+      final sync = FakeStrategyBoardSyncService()..simulateRejection = true;
+      final controller = StrategyController(
+        directory: FakeMatchDirectory(),
+        syncService: sync,
+      );
+      await controller.bootstrap();
+
+      controller.setEventName('Test Event');
+      await settle();
+
+      expect(sync.pushed, isEmpty);
+      expect(controller.syncStatus.state, StrategyBoardSyncState.rejected);
+    });
+
+    test('a 401-shaped failure still reports offline, not rejected', () async {
+      final sync = FakeStrategyBoardSyncService()..simulateOutage = true;
+      final controller = StrategyController(
+        directory: FakeMatchDirectory(),
+        syncService: sync,
+      );
+      await controller.bootstrap();
+
+      controller.setEventName('Test Event');
+      await settle();
+
+      expect(sync.pushed, isEmpty);
+      expect(controller.syncStatus.state, StrategyBoardSyncState.offline);
+    });
+
+    test('a denied read reports noAccess', () async {
+      final sync = FakeStrategyBoardSyncService();
+      final controller = StrategyController(
+        directory: FakeMatchDirectory(),
+        syncService: sync,
+      );
+      await controller.bootstrap();
+
+      sync.emitStatus(
+        const StrategyBoardSyncStatus(state: StrategyBoardSyncState.noAccess),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.syncStatus.state, StrategyBoardSyncState.noAccess);
+    });
+
+    test('a rejected board is not retried by a later unrelated synced tick, '
+        'and resumes only on a direct edit', () async {
+      final sync = FakeStrategyBoardSyncService()..simulateRejection = true;
+      final controller = StrategyController(
+        directory: FakeMatchDirectory(),
+        syncService: sync,
+      );
+      await controller.bootstrap();
+
+      controller.setEventName('First Edit');
+      await settle();
+      expect(sync.pushed, isEmpty);
+      expect(controller.syncStatus.state, StrategyBoardSyncState.rejected);
+
+      sync.simulateRejection = false;
+      sync.emitStatus(
+        const StrategyBoardSyncStatus(state: StrategyBoardSyncState.offline),
+      );
+      await Future<void>.delayed(Duration.zero);
+      sync.emitStatus(
+        const StrategyBoardSyncStatus(state: StrategyBoardSyncState.synced),
+      );
+      await settle();
+      expect(sync.pushed, isEmpty);
+
+      controller.setEventName('Edited Event');
+      await settle();
+      expect(sync.pushed.map((b) => b.eventName), contains('Edited Event'));
+    });
+  });
+
+  group('persisted pending board ids', () {
+    test(
+      'bootstrap never pushes an existing board nobody has edited',
+      () async {
+        final directory = FakeMatchDirectory();
+        await directory.saveMatch(StrategySession.create(id: 'old-board'));
+        await directory.setActiveMatchId('old-board');
+        final sync = FakeStrategyBoardSyncService();
+        final controller = StrategyController(
+          directory: directory,
+          syncService: sync,
+          loadPendingBoardIds: directory.loadPendingBoardIds,
+          savePendingBoardIds: directory.savePendingBoardIds,
+        );
+        await controller.bootstrap();
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+
+        expect(sync.pushed, isEmpty);
+      },
+    );
+
+    test('a pending push survives a relaunch and is retried', () async {
+      final directory = FakeMatchDirectory();
+
+      final sync = FakeStrategyBoardSyncService()..simulateOutage = true;
+      final controller = StrategyController(
+        directory: directory,
+        syncService: sync,
+        loadPendingBoardIds: directory.loadPendingBoardIds,
+        savePendingBoardIds: directory.savePendingBoardIds,
+      );
+      await controller.bootstrap();
+      final boardId = controller.session.id;
+
+      controller.setEventName('Pending Event');
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(sync.pushed, isEmpty);
+
+      final relaunchSync = FakeStrategyBoardSyncService();
+      final relaunched = StrategyController(
+        directory: directory,
+        syncService: relaunchSync,
+        loadPendingBoardIds: directory.loadPendingBoardIds,
+        savePendingBoardIds: directory.savePendingBoardIds,
+      );
+      await relaunched.bootstrap();
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+
+      expect(relaunchSync.pushed.map((b) => b.id), contains(boardId));
+    });
+
+    test(
+      'a push that already landed is not retried on a later relaunch',
+      () async {
+        final directory = FakeMatchDirectory();
+        final sync = FakeStrategyBoardSyncService();
+        final controller = StrategyController(
+          directory: directory,
+          syncService: sync,
+          loadPendingBoardIds: directory.loadPendingBoardIds,
+          savePendingBoardIds: directory.savePendingBoardIds,
+        );
+        await controller.bootstrap();
+        final boardId = controller.session.id;
+
+        controller.setEventName('Synced Event');
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        expect(sync.pushed.map((b) => b.id), contains(boardId));
+
+        final relaunchSync = FakeStrategyBoardSyncService();
+        final relaunched = StrategyController(
+          directory: directory,
+          syncService: relaunchSync,
+          loadPendingBoardIds: directory.loadPendingBoardIds,
+          savePendingBoardIds: directory.savePendingBoardIds,
+        );
+        await relaunched.bootstrap();
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+
+        expect(relaunchSync.pushed, isEmpty);
+      },
+    );
   });
 
   group('local persist debounce', () {

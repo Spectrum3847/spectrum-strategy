@@ -107,21 +107,49 @@ async function getDocument(project, path, opts) {
   return decodeFields(data.fields || {});
 }
 
+async function listCollectionPage(project, collectionId, opts, { pageToken, pageSize = 300 } = {}) {
+  const url = new URL(`${documentsUrl(project)}/${collectionId}`);
+  url.searchParams.set('pageSize', String(pageSize));
+  if (pageToken) url.searchParams.set('pageToken', pageToken);
+  const { status, ok, data } = await rawRequest(url.toString(), opts);
+  throwIfQuotaExceeded(status, data);
+  if (!ok) {
+    throw new Error(`Firestore list ${collectionId} failed: HTTP ${status} ${JSON.stringify(data)}`);
+  }
+  const docs = (data.documents || []).map((doc) => ({
+    id: docIdFromName(doc.name),
+    data: decodeFields(doc.fields || {}),
+  }));
+  return { docs, nextPageToken: data.nextPageToken || null };
+}
+
 async function listCollection(project, collectionId, opts) {
   const results = [];
   let pageToken;
   do {
-    const url = new URL(`${documentsUrl(project)}/${collectionId}`);
-    url.searchParams.set('pageSize', '300');
-    if (pageToken) url.searchParams.set('pageToken', pageToken);
-    const { status, ok, data } = await rawRequest(url.toString(), opts);
+    const { docs, nextPageToken } = await listCollectionPage(project, collectionId, opts, { pageToken });
+    results.push(...docs);
+    pageToken = nextPageToken;
+  } while (pageToken);
+  return results;
+}
+
+async function listCollectionIds(project, opts) {
+  const results = [];
+  let pageToken;
+  do {
+    const body = { pageSize: 300 };
+    if (pageToken) body.pageToken = pageToken;
+    const { status, ok, data } = await rawRequest(`${documentsUrl(project)}:listCollectionIds`, {
+      ...opts,
+      method: 'POST',
+      body,
+    });
     throwIfQuotaExceeded(status, data);
     if (!ok) {
-      throw new Error(`Firestore list ${collectionId} failed: HTTP ${status} ${JSON.stringify(data)}`);
+      throw new Error(`Firestore listCollectionIds failed: HTTP ${status} ${JSON.stringify(data)}`);
     }
-    for (const doc of data.documents || []) {
-      results.push({ id: docIdFromName(doc.name), data: decodeFields(doc.fields || {}) });
-    }
+    results.push(...(data.collectionIds || []));
     pageToken = data.nextPageToken;
   } while (pageToken);
   return results;
@@ -249,6 +277,8 @@ export {
   getDocument,
   batchGetDocuments,
   listCollection,
+  listCollectionPage,
+  listCollectionIds,
   runQuery,
   whereQuery,
   whereEqualsQuery,

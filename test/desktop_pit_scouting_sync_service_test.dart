@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:spectrumstrategy/src/scouting/models/pit_scout_entry.dart';
 import 'package:spectrumstrategy/src/scouting/services/desktop_pit_scouting_sync_service.dart';
+import 'package:spectrumstrategy/src/scouting/services/pit_scouting_sync_service.dart';
 import 'package:spectrumstrategy/src/services/spectrum_auth_service.dart';
 
 import 'support/fake_pending_push_queue.dart';
@@ -449,5 +450,46 @@ void main() {
 
     expect(emissions.expand((e) => e), isEmpty);
     await service.dispose();
+  });
+
+  test('a permission-denied push reads as rejected, not offline', () async {
+    final entry = PitScoutEntry(id: 'p1', teamNumber: 3847);
+    final service = DesktopPitScoutingSyncService(
+      authService: _signedInAuth(),
+      firestore: _firestore(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {'code': 403, 'message': 'denied'},
+            }),
+            403,
+          ),
+        ),
+      ),
+      pendingPushQueue: FakePendingPushQueue(),
+    );
+    await service.push(entry);
+
+    expect(service.status.state, PitScoutingSyncState.rejected);
+  });
+
+  test('a 401 on a write reads as offline, not rejected', () async {
+    final entry = PitScoutEntry(id: 'p2', teamNumber: 3847);
+    final service = DesktopPitScoutingSyncService(
+      authService: _signedInAuth(),
+      firestore: _firestore(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {'code': 401, 'message': 'unauthenticated'},
+            }),
+            401,
+          ),
+        ),
+      ),
+      pendingPushQueue: FakePendingPushQueue(),
+    );
+    await service.push(entry);
+    expect(service.status.state, PitScoutingSyncState.offline);
   });
 }

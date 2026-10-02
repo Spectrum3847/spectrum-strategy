@@ -817,6 +817,15 @@ class _BoardSyncPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (status.state == StrategyBoardSyncState.rejected) {
+      return SyncStatusPill(
+        label: 'Not accepted',
+        icon: Icons.report_gmailerrorred_rounded,
+        isFailure: true,
+        tooltip: status.error,
+      );
+    }
+
     if (failedWrites.hasFailures) {
       final count = failedWrites.unlandedCount;
       return SyncStatusPill(
@@ -838,6 +847,10 @@ class _BoardSyncPill extends StatelessWidget {
       StrategyBoardSyncState.syncing => ('Syncing...', Icons.sync_rounded),
       StrategyBoardSyncState.synced => ('Synced', Icons.cloud_done_rounded),
       StrategyBoardSyncState.offline => ('Offline', Icons.cloud_off_rounded),
+      StrategyBoardSyncState.rejected => (
+        'Not accepted',
+        Icons.report_gmailerrorred_rounded,
+      ),
     };
 
     return SyncStatusPill(label: label, icon: icon);

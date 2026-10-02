@@ -6,6 +6,7 @@ import 'package:spectrumstrategy/src/services/match_directory.dart';
 class FakeMatchDirectory implements MatchDirectory {
   final Map<String, String> _matches = <String, String>{};
   String? _activeId;
+  Set<String> _pendingBoardIds = <String>{};
 
   Map<String, String> get rawMatches =>
       Map<String, String>.unmodifiable(_matches);
@@ -64,5 +65,11 @@ class FakeMatchDirectory implements MatchDirectory {
   @override
   Future<void> setActiveMatchId(String? id) async {
     _activeId = id;
+  }
+
+  Future<Set<String>> loadPendingBoardIds() async => _pendingBoardIds.toSet();
+
+  Future<void> savePendingBoardIds(Set<String> ids) async {
+    _pendingBoardIds = ids.toSet();
   }
 }

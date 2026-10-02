@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:statbotics_client/statbotics_client.dart';
 
 import '../../services/analytics_service.dart';
+import '../../services/match_id_resolver.dart';
 import '../../state/failed_write_tracker.dart';
 import '../models/accuracy_alert.dart';
 import '../models/scout_entry.dart';
+import '../models/scout_schedule.dart';
 import '../services/accuracy_alert_service.dart';
 import '../services/scouting_storage.dart';
 import '../services/scouting_sync_service.dart';
@@ -31,6 +34,8 @@ class ScoutingController extends ChangeNotifier {
   final List<ScoutEntry> _entries = <ScoutEntry>[];
 
   final Set<String> _remoteSyncedIds = <String>{};
+
+  final Set<String> _rejectedIds = <String>{};
 
   final Map<String, int> _mutations = <String, int>{};
 
@@ -111,7 +116,8 @@ class ScoutingController extends ChangeNotifier {
       } catch (_) {
         // Intentionally empty.
       }
-      if (_syncStatus.state != ScoutingSyncState.signedOut) {
+
+      if (_syncStatus.state == ScoutingSyncState.synced) {
         unawaited(_repushUnsynced());
       }
     }
@@ -166,9 +172,93 @@ class ScoutingController extends ChangeNotifier {
     _analytics.capture('scout_entry_saved');
     final sync = _syncService;
     if (sync != null) {
-      unawaited(sync.push(snapshot).then(_recordSyncOutcome));
+      unawaited(
+        sync.push(snapshot).then((status) {
+          _recordSyncOutcome(snapshot.id, status);
+        }),
+      );
     }
     return true;
+  }
+
+  Future<void> backfillMatchKeys(Iterable<StatboticsMatch> matches) async {
+    if (matches.isEmpty) return;
+    final resolver = MatchIdResolver(matches);
+
+    final unresolved = _entries
+        .where((entry) => entry.tbaMatchKey == null)
+        .toList(growable: false);
+    for (final entry in unresolved) {
+      final typed = entry.fieldValues['matchNumber']?.toString().trim() ?? '';
+      if (typed.isEmpty) continue;
+      final station = entry.fieldValues['robot']?.toString().trim() ?? '';
+      final match = resolver.resolveWithTiebreak(
+        typed,
+        station: station,
+        teamNumber: entry.teamNumber,
+      );
+      if (match == null) continue;
+      await saveEntry(entry.copyWith(tbaMatchKey: match.key));
+    }
+  }
+
+  static String stationOf(Map<String, dynamic> fieldValues) {
+    final robot = fieldValues['robot']?.toString().trim() ?? '';
+    if (robot.isNotEmpty) return robot;
+    for (final value in fieldValues.values) {
+      if (value is Map) {
+        final position = value['robotPosition']?.toString().trim() ?? '';
+        if (position.isNotEmpty) return position;
+      }
+    }
+    return '';
+  }
+
+  int? nextMatchNumberFor({
+    required String station,
+    required Iterable<StatboticsMatch> schedule,
+  }) {
+    final qualMatches = schedule.where((m) => m.compLevel == 'qm').toList();
+    if (qualMatches.isEmpty) return null;
+    final numberByKey = <String, int>{
+      for (final m in qualMatches) m.key.toLowerCase(): m.matchNumber,
+    };
+    final numbers = qualMatches.map((m) => m.matchNumber).toSet().toList()
+      ..sort();
+
+    final wanted = ScoutSchedule.normalizeStation(station);
+
+    if (wanted == null) return null;
+    final stationsByNumber = <int, Set<String>>{};
+    final savedForStation = <int>{};
+    for (final entry in _entries) {
+      final key = entry.tbaMatchKey?.toLowerCase();
+      if (key == null) continue;
+      final n = numberByKey[key];
+      if (n == null) continue;
+      final entryStation = ScoutSchedule.normalizeStation(
+        stationOf(entry.fieldValues),
+      );
+
+      if (entryStation == null) continue;
+      stationsByNumber.putIfAbsent(n, () => <String>{}).add(entryStation);
+      if (entryStation == wanted) savedForStation.add(n);
+    }
+
+    int? floor;
+    for (final MapEntry(key: n, value: stations) in stationsByNumber.entries) {
+      final corroborated = stations.length >= 2;
+      if ((corroborated || savedForStation.contains(n)) &&
+          (floor == null || n > floor)) {
+        floor = n;
+      }
+    }
+
+    if (floor == null) return numbers.first;
+    for (final n in numbers) {
+      if (n >= floor && !savedForStation.contains(n)) return n;
+    }
+    return null;
   }
 
   Future<ScanImportResult> importScannedEntry(ScoutEntry entry) async {
@@ -220,18 +310,24 @@ class ScoutingController extends ChangeNotifier {
     }
     final sync = _syncService;
     if (sync != null) {
-      unawaited(sync.delete(existing).then(_recordSyncOutcome));
+      unawaited(
+        sync.delete(existing).then((status) {
+          _recordSyncOutcome(id, status);
+        }),
+      );
     }
     return true;
   }
 
-  void _recordSyncOutcome(ScoutingSyncStatus? status) {
+  void _recordSyncOutcome(String id, ScoutingSyncStatus? status) {
     if (status == null) return;
     if (status.state == ScoutingSyncState.rejected) {
+      _rejectedIds.add(id);
       failedWrites.recordFailure();
       _analytics.capture('sync_failed');
       notifyListeners();
     } else if (status.state == ScoutingSyncState.synced) {
+      _rejectedIds.remove(id);
       if (failedWrites.recordSuccess()) notifyListeners();
       _analytics.capture('sync_succeeded');
     }
@@ -262,6 +358,8 @@ class ScoutingController extends ChangeNotifier {
       }
 
       _confirmed[incoming.id] = incoming;
+
+      _rejectedIds.remove(incoming.id);
       final index = _entries.indexWhere((local) => local.id == incoming.id);
       if (index < 0) {
         _nextMutation(incoming.id);
@@ -319,7 +417,11 @@ class ScoutingController extends ChangeNotifier {
         if (sync == null) return;
 
         final targetIds = _entries
-            .where((entry) => !_remoteSyncedIds.contains(entry.id))
+            .where(
+              (entry) =>
+                  !_remoteSyncedIds.contains(entry.id) &&
+                  !_rejectedIds.contains(entry.id),
+            )
             .map((entry) => entry.id)
             .toSet();
         if (targetIds.isEmpty) continue;
@@ -329,7 +431,7 @@ class ScoutingController extends ChangeNotifier {
           final index = _entries.indexWhere((entry) => entry.id == id);
           if (index < 0) continue;
           final snapshot = ScoutEntry.fromJson(_entries[index].toJson());
-          _recordSyncOutcome(await sync.push(snapshot));
+          _recordSyncOutcome(id, await sync.push(snapshot));
         }
       } while (_repushPending);
     } finally {
