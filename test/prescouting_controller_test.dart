@@ -378,6 +378,73 @@ void main() {
       expect(controller.entries, hasLength(1));
     });
 
+    test('a push the server rejects reports rejected, not offline', () async {
+      sync.simulateRejection = true;
+      await controller.bootstrap();
+      await controller.saveEntry(PrescoutEntry(id: 'e1', teamNumber: 3847));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushed, isEmpty);
+      expect(controller.syncStatus.state, PrescoutingSyncState.rejected);
+    });
+
+    test('a 401-shaped failure still reports offline, not rejected', () async {
+      sync.simulateOutage = true;
+      await controller.bootstrap();
+      await controller.saveEntry(PrescoutEntry(id: 'e1', teamNumber: 3847));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushed, isEmpty);
+      expect(controller.syncStatus.state, PrescoutingSyncState.offline);
+    });
+
+    test('a denied read reports noAccess', () async {
+      await controller.bootstrap();
+      sync.emitStatus(
+        const PrescoutingSyncStatus(state: PrescoutingSyncState.noAccess),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.syncStatus.state, PrescoutingSyncState.noAccess);
+    });
+
+    test('a rejected entry stops being retried once _repushUnsynced has seen '
+        'the rejection, and resumes only on a direct edit', () async {
+      sync.simulateRejection = true;
+      await controller.bootstrap();
+      final entry = PrescoutEntry(id: 'e1', teamNumber: 3847);
+      await controller.saveEntry(entry);
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushed, isEmpty);
+
+      sync.emitStatus(
+        const PrescoutingSyncStatus(state: PrescoutingSyncState.offline),
+      );
+      await Future<void>.delayed(Duration.zero);
+      sync.emitStatus(
+        const PrescoutingSyncStatus(state: PrescoutingSyncState.synced),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushed, isEmpty);
+
+      sync.simulateRejection = false;
+      sync.emitStatus(
+        const PrescoutingSyncStatus(state: PrescoutingSyncState.offline),
+      );
+      await Future<void>.delayed(Duration.zero);
+      sync.emitStatus(
+        const PrescoutingSyncStatus(state: PrescoutingSyncState.synced),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushed, isEmpty);
+
+      await controller.saveEntry(
+        entry.copyWith(fieldValues: const {'notes': 'edited'}),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushed, hasLength(1));
+    });
+
     test('a failed save does not wedge the save queue', () async {
       final flaky = _FlakyStorage();
       final local = PrescoutingController(storage: flaky);

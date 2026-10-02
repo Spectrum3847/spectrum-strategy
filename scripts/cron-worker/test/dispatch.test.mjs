@@ -24,11 +24,17 @@ test('/run/<name> runs that one job and names it in the response', async () => {
   const env = { RUN_TOKEN: 'secret-1' };
   for (const name of Object.keys(JOBS)) {
     const res = await worker.fetch(post(`/run/${name}`), env);
-    assert.equal(res.status, 200, `${name} route answers 200`);
     const body = await res.json();
     assert.equal(body.job, name);
 
     assert.equal(body.result.skipped, 'missing-secrets');
+    if (JOBS[name].critical) {
+
+      assert.equal(res.status, 500, `${name} (critical) answers 500 when secrets are missing`);
+      assert.ok(body.result.failed >= 1);
+    } else {
+      assert.equal(res.status, 200, `${name} route answers 200`);
+    }
   }
 });
 

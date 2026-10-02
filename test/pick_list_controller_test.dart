@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:spectrumstrategy/src/models/pick_list.dart';
 import 'package:spectrumstrategy/src/services/pick_list_storage.dart';
+import 'package:spectrumstrategy/src/services/pick_list_sync_service.dart';
 import 'package:spectrumstrategy/src/state/pick_list_controller.dart';
 
 import 'support/fake_pick_list_sync_service.dart';
@@ -428,6 +429,91 @@ void main() {
 
       final updated = controller.byId('remote-1')!;
       expect(updated.updatedAt.isAfter(DateTime.utc(2026, 6, 28)), isTrue);
+    });
+  });
+
+  group('PickListController rejected vs offline sync', () {
+    late _InMemoryStorage storage;
+    late FakePickListSyncService sync;
+    late PickListController controller;
+
+    setUp(() {
+      storage = _InMemoryStorage();
+      var counter = 0;
+      sync = FakePickListSyncService(
+        currentUserUid: 'uid-me',
+        currentUserDisplayName: 'Me',
+      );
+      controller = PickListController(
+        storage: storage,
+        syncService: sync,
+        idGenerator: () => 'id${counter++}',
+        clock: () => DateTime.utc(2026, 6, 27),
+      );
+    });
+
+    test('a push the server rejects reports rejected, not offline', () async {
+      sync.simulateRejection = true;
+      await controller.bootstrap();
+      await controller.create('List');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushed, isEmpty);
+      expect(controller.syncStatus.state, PickListSyncState.rejected);
+    });
+
+    test('a 401-shaped failure still reports offline, not rejected', () async {
+      sync.simulateOutage = true;
+      await controller.bootstrap();
+      await controller.create('List');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushed, isEmpty);
+      expect(controller.syncStatus.state, PickListSyncState.offline);
+    });
+
+    test('a denied read reports noAccess', () async {
+      await controller.bootstrap();
+      sync.emitStatus(
+        const PickListSyncStatus(state: PickListSyncState.noAccess),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.syncStatus.state, PickListSyncState.noAccess);
+    });
+
+    test('a rejected list stops being retried once _repushUnsynced has seen '
+        'the rejection, and resumes only on a direct edit', () async {
+      sync.simulateRejection = true;
+      await controller.bootstrap();
+      final list = (await controller.create('List'))!;
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushed, isEmpty);
+
+      sync.emitStatus(
+        const PickListSyncStatus(state: PickListSyncState.offline),
+      );
+      await Future<void>.delayed(Duration.zero);
+      sync.emitStatus(
+        const PickListSyncStatus(state: PickListSyncState.synced),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushed, isEmpty);
+
+      sync.simulateRejection = false;
+      sync.emitStatus(
+        const PickListSyncStatus(state: PickListSyncState.offline),
+      );
+      await Future<void>.delayed(Duration.zero);
+      sync.emitStatus(
+        const PickListSyncStatus(state: PickListSyncState.synced),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushed, isEmpty);
+
+      await controller.rename(list.id, 'Renamed');
+      await Future<void>.delayed(Duration.zero);
+      expect(sync.pushed, hasLength(1));
     });
   });
 

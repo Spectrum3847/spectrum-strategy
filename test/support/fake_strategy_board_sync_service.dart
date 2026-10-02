@@ -9,6 +9,10 @@ class FakeStrategyBoardSyncService implements StrategyBoardSyncService {
   int syncNowCalls = 0;
   bool disposed = false;
 
+  bool simulateOutage = false;
+
+  bool simulateRejection = false;
+
   final StreamController<StrategyBoardSyncStatus> _statusController =
       StreamController<StrategyBoardSyncStatus>.broadcast();
   final StreamController<List<StrategySession>> _remoteController =
@@ -29,11 +33,39 @@ class FakeStrategyBoardSyncService implements StrategyBoardSyncService {
   void emitRemote(List<StrategySession> boards) =>
       _remoteController.add(boards);
 
+  void emitStatus(StrategyBoardSyncStatus next) {
+    status = next;
+    _statusController.add(next);
+  }
+
   @override
   Future<void> initialize() async {}
 
   @override
-  Future<void> push(StrategySession session) async => pushed.add(session);
+  Future<void> push(StrategySession session) async {
+    if (simulateRejection) {
+      emitStatus(
+        const StrategyBoardSyncStatus(
+          state: StrategyBoardSyncState.rejected,
+          error: 'permission-denied: push rejected',
+        ),
+      );
+      return;
+    }
+    if (simulateOutage) {
+      emitStatus(
+        const StrategyBoardSyncStatus(
+          state: StrategyBoardSyncState.offline,
+          error: 'push failed',
+        ),
+      );
+      return;
+    }
+    pushed.add(session);
+    emitStatus(
+      const StrategyBoardSyncStatus(state: StrategyBoardSyncState.synced),
+    );
+  }
 
   @override
   Future<void> delete(StrategySession session) async => deleted.add(session.id);

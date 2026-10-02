@@ -2,7 +2,7 @@
   "title": "QRScout",
   "page_title": "Scouting",
   "delimiter": "\t",
-  "revision": 3,
+  "revision": 4,
   "sections": [
     {
       "name": "Prematch",
@@ -18,11 +18,11 @@
         },
         {
           "title": "Match Number",
-          "description": "Pick the match from the event schedule.",
+          "description": "Defaults to the next match for this station.",
           "type": "TBA-match-number",
           "required": true,
           "code": "matchNumber",
-          "formResetBehavior": "increment",
+          "formResetBehavior": "preserve",
           "defaultValue": 1
         },
         {

@@ -26,6 +26,8 @@ class PickListController extends ChangeNotifier {
   List<PickList> _lists = <PickList>[];
 
   final Set<String> _remoteSyncedIds = <String>{};
+
+  final Set<String> _rejectedIds = <String>{};
   Future<void>? _bootstrapFuture;
   Future<void> _saveQueue = Future<void>.value();
   bool _ready = false;
@@ -34,6 +36,9 @@ class PickListController extends ChangeNotifier {
   PickListSyncStatus _syncStatus = const PickListSyncStatus(
     state: PickListSyncState.signedOut,
   );
+
+  bool _repushInFlight = false;
+  bool _repushPending = false;
 
   final Map<String, int> _mutations = <String, int>{};
 
@@ -80,8 +85,15 @@ class PickListController extends ChangeNotifier {
     final sync = _syncService;
     if (sync != null) {
       _statusSubscription = sync.statusStream.listen((status) {
+        final previousState = _syncStatus.state;
         _syncStatus = status;
         notifyListeners();
+
+        if (!_repushInFlight &&
+            status.state == PickListSyncState.synced &&
+            previousState != PickListSyncState.synced) {
+          unawaited(_repushUnsynced());
+        }
       });
       _remoteSubscription = sync.remoteListsStream.listen(_mergeRemote);
       _syncStatus = sync.status;
@@ -89,6 +101,10 @@ class PickListController extends ChangeNotifier {
         await sync.initialize();
       } catch (_) {
         // Intentionally empty.
+      }
+
+      if (_syncStatus.state == PickListSyncState.synced) {
+        unawaited(_repushUnsynced());
       }
 
       notifyListeners();
@@ -223,6 +239,46 @@ class PickListController extends ChangeNotifier {
       unawaited(pushOverride(snapshot));
     } else {
       unawaited(_syncService?.push(snapshot));
+    }
+  }
+
+  Future<void> _repushUnsynced() async {
+    if (_repushInFlight) {
+      _repushPending = true;
+      return;
+    }
+    _repushInFlight = true;
+    try {
+      do {
+        _repushPending = false;
+        final sync = _syncService;
+        if (sync == null) return;
+        final targetIds = _lists
+            .where(
+              (list) =>
+                  !_remoteSyncedIds.contains(list.id) &&
+                  !_rejectedIds.contains(list.id),
+            )
+            .map((list) => list.id)
+            .toSet();
+        if (targetIds.isEmpty) continue;
+
+        await _saveQueue;
+        for (final id in targetIds) {
+          final index = _lists.indexWhere((list) => list.id == id);
+          if (index < 0) continue;
+          final snapshot = PickList.fromJson(_lists[index].toJson());
+          await sync.push(snapshot);
+
+          if (sync.status.state == PickListSyncState.rejected) {
+            _rejectedIds.add(id);
+          } else if (sync.status.state == PickListSyncState.synced) {
+            _rejectedIds.remove(id);
+          }
+        }
+      } while (_repushPending);
+    } finally {
+      _repushInFlight = false;
     }
   }
 

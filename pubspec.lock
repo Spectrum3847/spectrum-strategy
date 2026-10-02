@@ -79,10 +79,10 @@ packages:
     dependency: transitive
     description:
       name: cel
-      sha256: "51d77e16424d41b5fdb0a239be4c8a0550d4dd3f952801d35375ddd90cfb49da"
+      sha256: "72776d4cacd526f9846522e7a3ce8584c2071974d747e2ea695645faa2dcea1b"
       url: "https://pub.dev"
     source: hosted
-    version: "0.5.4+1"
+    version: "0.6.0"
   characters:
     dependency: transitive
     description:
@@ -247,18 +247,18 @@ packages:
     dependency: "direct dev"
     description:
       name: fake_cloud_firestore
-      sha256: c2ce1f828e5840c2f212584d496dbae0cfc94848daa84112e51a0722358aa24a
+      sha256: "4276eadc5e2c36663fe393e98d14d4cc413ebe8ce0d02edd8cda57ef7a5a8369"
       url: "https://pub.dev"
     source: hosted
-    version: "4.2.0"
+    version: "4.3.0"
   fake_firebase_security_rules:
     dependency: transitive
     description:
       name: fake_firebase_security_rules
-      sha256: "6af54bedfd6985451a9735f2cfac91ffe0128bfc92bf15e8544cd56c6941d6cc"
+      sha256: "983a1b3aec751af3122c1cfa79ebac0336a1589226a9683548b30457a5268720"
       url: "https://pub.dev"
     source: hosted
-    version: "0.5.4"
+    version: "0.6.0"
   ffi:
     dependency: "direct main"
     description:
@@ -287,18 +287,18 @@ packages:
     dependency: "direct main"
     description:
       name: file_picker
-      sha256: "1fb0cb9de6a189d76980a5a00ae3d4c9ec07e87519fd7368b75f5ebf0126977e"
+      sha256: "98c0b156b6380ba55bc767a14e2e6b3feb246e713ad40092424596fa79005bea"
       url: "https://pub.dev"
     source: hosted
-    version: "13.0.0"
+    version: "13.1.0"
   file_picker_darwin:
     dependency: transitive
     description:
       name: file_picker_darwin
-      sha256: da861ccc4cdbc8bacf1f85d53dede63d40dd7c0b5ff823cd2b564a8daa1bc058
+      sha256: "51aef9f4c80449c736e7cc02198675fda73689f0bd45a84da642cfeab0250d46"
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.0"
+    version: "2.1.2"
   file_picker_linux:
     dependency: transitive
     description:
@@ -793,10 +793,10 @@ packages:
     dependency: "direct main"
     description:
       name: mobile_scanner
-      sha256: ce3f059ebd6dbfab7292bba0e893e354b46730636820d3c9ef69005ce2d55bce
+      sha256: "5a51ea79f0cf8293f616a5d08baae185b59b5e6bb24df01f2a63037ade0bade0"
       url: "https://pub.dev"
     source: hosted
-    version: "7.4.0"
+    version: "7.4.2"
   mock_exceptions:
     dependency: "direct dev"
     description:
@@ -1200,10 +1200,10 @@ packages:
     dependency: "direct main"
     description:
       name: two_dimensional_scrollables
-      sha256: d3c4771a7ffc67a16950056742565960d32e729df8a52aa09731e5bb68e106df
+      sha256: "27ab607d5900b9907308367c76a62467c88b3ede3017fcbece3a2419dc51c3de"
       url: "https://pub.dev"
     source: hosted
-    version: "0.5.4"
+    version: "0.5.5"
   typed_data:
     dependency: transitive
     description:

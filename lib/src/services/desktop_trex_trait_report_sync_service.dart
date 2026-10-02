@@ -130,7 +130,7 @@ class DesktopTrexTraitReportSyncService implements TrexTraitReportSyncService {
     } catch (error) {
       await _queue.mark(_collection, stamped.id);
       await _syncPendingCount();
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     }
   }
 
@@ -152,7 +152,7 @@ class DesktopTrexTraitReportSyncService implements TrexTraitReportSyncService {
     } catch (error) {
       await _queue.mark(_deletedCollection, id);
       await _syncPendingCount();
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     }
   }
 
@@ -287,9 +287,23 @@ class DesktopTrexTraitReportSyncService implements TrexTraitReportSyncService {
     );
   }
 
-  void _emitFailure(Object error) {
+  void _emitFailure(Object error, {bool isWrite = false}) {
     _pollScheduler.onFailure();
-    if (error is fc.FirestoreApiException &&
+    if (isWrite &&
+        error is fc.FirestoreApiException &&
+        (error.statusCode == 403 || error.status == 'PERMISSION_DENIED')) {
+      _emit(
+        TrexTraitReportSyncStatus(
+          state: TrexTraitReportSyncState.rejected,
+          lastSyncedAt: _status.lastSyncedAt,
+          error: error.message,
+        ),
+      );
+      return;
+    }
+
+    if (!isWrite &&
+        error is fc.FirestoreApiException &&
         (error.statusCode == 403 || error.statusCode == 401)) {
       _emit(
         TrexTraitReportSyncStatus(

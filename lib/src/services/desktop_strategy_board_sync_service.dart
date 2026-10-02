@@ -128,7 +128,7 @@ class DesktopStrategyBoardSyncService implements StrategyBoardSyncService {
       _emitSynced();
     } catch (error) {
       await _queue.mark(_collection, session.id);
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     } finally {
       _inFlightWrites.endWrite(session.id, token);
     }
@@ -155,7 +155,7 @@ class DesktopStrategyBoardSyncService implements StrategyBoardSyncService {
       _emitSynced();
     } catch (error) {
       await _queue.mark(_deleteCollection, session.id);
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     } finally {
       _inFlightWrites.endWrite(session.id, token);
     }
@@ -288,9 +288,22 @@ class DesktopStrategyBoardSyncService implements StrategyBoardSyncService {
     );
   }
 
-  void _emitFailure(Object error) {
+  void _emitFailure(Object error, {bool isWrite = false}) {
     _pollScheduler.onFailure();
-    if (error is fc.FirestoreApiException &&
+    if (isWrite &&
+        error is fc.FirestoreApiException &&
+        (error.statusCode == 403 || error.status == 'PERMISSION_DENIED')) {
+      _emit(
+        StrategyBoardSyncStatus(
+          state: StrategyBoardSyncState.rejected,
+          lastSyncedAt: _status.lastSyncedAt,
+          error: error.message,
+        ),
+      );
+      return;
+    }
+    if (!isWrite &&
+        error is fc.FirestoreApiException &&
         (error.statusCode == 403 || error.statusCode == 401)) {
       _emit(
         StrategyBoardSyncStatus(

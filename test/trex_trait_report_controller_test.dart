@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:statbotics_client/statbotics_client.dart';
 import 'package:spectrumstrategy/src/models/trex_trait.dart';
 import 'package:spectrumstrategy/src/models/trex_trait_report.dart';
+import 'package:spectrumstrategy/src/services/trex_trait_report_sync_service.dart';
 import 'package:spectrumstrategy/src/state/event_controller.dart';
 import 'package:spectrumstrategy/src/state/trex_trait_report_controller.dart';
 
@@ -327,6 +328,105 @@ void main() {
         expect(controller.reports, hasLength(1));
         expect(controller.lastError, isNotNull);
         expect(controller.failedWrites.hasFailures, isTrue);
+      },
+    );
+  });
+
+  group('TrexTraitReportController rejected vs offline sync', () {
+    test('a push the server rejects reports rejected, not offline', () async {
+      final sync = FakeTrexTraitReportSyncService()..simulateRejection = true;
+      final controller = TrexTraitReportController(
+        storage: FakeTrexTraitReportStorage(),
+        syncService: sync,
+      );
+      await controller.bootstrap();
+
+      await controller.submitReport(_report(id: 'r1'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushed, isEmpty);
+      expect(sync.status.state, TrexTraitReportSyncState.rejected);
+    });
+
+    test('a 401-shaped failure still reports offline, not rejected', () async {
+      final sync = FakeTrexTraitReportSyncService()..simulateOutage = true;
+      final controller = TrexTraitReportController(
+        storage: FakeTrexTraitReportStorage(),
+        syncService: sync,
+      );
+      await controller.bootstrap();
+
+      await controller.submitReport(_report(id: 'r1'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(sync.pushed, isEmpty);
+      expect(sync.status.state, TrexTraitReportSyncState.offline);
+    });
+
+    test('a denied read reports noAccess', () async {
+      final sync = FakeTrexTraitReportSyncService();
+      final controller = TrexTraitReportController(
+        storage: FakeTrexTraitReportStorage(),
+        syncService: sync,
+      );
+      await controller.bootstrap();
+
+      sync.emitStatus(
+        const TrexTraitReportSyncStatus(
+          state: TrexTraitReportSyncState.noAccess,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.syncStatus.state, TrexTraitReportSyncState.noAccess);
+    });
+
+    test(
+      'a rejected report stops being retried once _repushUnsynced has seen '
+      'the rejection. Reports are never edited after submission (see the '
+      'class doc comment), so unlike the other six collections there is no '
+      'later direct-edit path to re-arm the retry within one run -- the '
+      'exclusion is permanent for that report until the next app launch.',
+      () async {
+        final sync = FakeTrexTraitReportSyncService()..simulateRejection = true;
+        final controller = TrexTraitReportController(
+          storage: FakeTrexTraitReportStorage(),
+          syncService: sync,
+        );
+        await controller.bootstrap();
+
+        await controller.submitReport(_report(id: 'r1'));
+        await Future<void>.delayed(Duration.zero);
+        expect(sync.pushed, isEmpty);
+
+        sync.emitStatus(
+          const TrexTraitReportSyncStatus(
+            state: TrexTraitReportSyncState.offline,
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+        sync.emitStatus(
+          const TrexTraitReportSyncStatus(
+            state: TrexTraitReportSyncState.synced,
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(sync.pushed, isEmpty);
+
+        sync.simulateRejection = false;
+        sync.emitStatus(
+          const TrexTraitReportSyncStatus(
+            state: TrexTraitReportSyncState.offline,
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+        sync.emitStatus(
+          const TrexTraitReportSyncStatus(
+            state: TrexTraitReportSyncState.synced,
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(sync.pushed, isEmpty);
       },
     );
   });

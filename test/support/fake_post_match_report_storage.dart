@@ -10,6 +10,8 @@ class FakePostMatchReportStorage implements PostMatchReportStorage {
 
   final Map<String, String> _reports = <String, String>{};
 
+  Set<String> _pendingIds = <String>{};
+
   final List<PostMatchReport> saved = <PostMatchReport>[];
 
   Object? failNextSave;
@@ -39,5 +41,13 @@ class FakePostMatchReportStorage implements PostMatchReportStorage {
     }
     saved.add(report);
     _reports[report.id] = jsonEncode(report.toJson());
+  }
+
+  @override
+  Future<Set<String>> loadPendingIds() async => _pendingIds.toSet();
+
+  @override
+  Future<void> savePendingIds(Set<String> ids) async {
+    _pendingIds = ids.toSet();
   }
 }

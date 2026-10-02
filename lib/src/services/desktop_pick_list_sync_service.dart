@@ -144,7 +144,7 @@ class DesktopPickListSyncService implements PickListSyncService {
       _emitSynced();
     } catch (error) {
       await _queue.mark('pickLists', stamped.id);
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     } finally {
       _inFlightWrites.endWrite(stamped.id, token);
     }
@@ -224,7 +224,7 @@ class DesktopPickListSyncService implements PickListSyncService {
         updatedAt: list.updatedAt,
       );
       await _queue.mark('pickLists', list.id);
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     } catch (error) {
       _queueTeamOp(
         list.id,
@@ -233,7 +233,7 @@ class DesktopPickListSyncService implements PickListSyncService {
         updatedAt: list.updatedAt,
       );
       await _queue.mark('pickLists', list.id);
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     } finally {
       _inFlightWrites.endWrite(list.id, token);
     }
@@ -314,7 +314,7 @@ class DesktopPickListSyncService implements PickListSyncService {
       _emitSynced();
     } catch (error) {
       await _queue.mark(_deletedCollection, id);
-      _emitFailure(error);
+      _emitFailure(error, isWrite: true);
     } finally {
       _inFlightWrites.endWrite(id, token);
     }
@@ -370,10 +370,10 @@ class DesktopPickListSyncService implements PickListSyncService {
           _pendingTeamOps.remove(id);
           return false;
         }
-        _emitFailure(error);
+        _emitFailure(error, isWrite: true);
         return true;
       } catch (error) {
-        _emitFailure(error);
+        _emitFailure(error, isWrite: true);
         return true;
       }
     }
@@ -480,10 +480,23 @@ class DesktopPickListSyncService implements PickListSyncService {
     );
   }
 
-  void _emitFailure(Object error) {
+  void _emitFailure(Object error, {bool isWrite = false}) {
     _pollScheduler.onFailure();
+    if (isWrite &&
+        error is fc.FirestoreApiException &&
+        (error.statusCode == 403 || error.status == 'PERMISSION_DENIED')) {
+      _emit(
+        PickListSyncStatus(
+          state: PickListSyncState.rejected,
+          lastSyncedAt: _status.lastSyncedAt,
+          error: error.message,
+        ),
+      );
+      return;
+    }
 
-    if (error is fc.FirestoreApiException &&
+    if (!isWrite &&
+        error is fc.FirestoreApiException &&
         (error.statusCode == 403 || error.statusCode == 401)) {
       _emit(
         PickListSyncStatus(

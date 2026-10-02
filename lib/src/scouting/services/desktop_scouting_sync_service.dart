@@ -323,9 +323,7 @@ class DesktopScoutingSyncService implements ScoutingSyncService {
     _pollScheduler.onFailure();
     if (isWrite &&
         error is fc.FirestoreApiException &&
-        (error.statusCode == 403 ||
-            error.statusCode == 401 ||
-            error.status == 'PERMISSION_DENIED')) {
+        (error.statusCode == 403 || error.status == 'PERMISSION_DENIED')) {
       final result = ScoutingSyncStatus(
         state: ScoutingSyncState.rejected,
         lastSyncedAt: _status.lastSyncedAt,

@@ -462,8 +462,27 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await sub.cancel();
 
-    expect(service.status.state, StrategyBoardSyncState.noAccess);
+    expect(service.status.state, StrategyBoardSyncState.rejected);
     expect(emissions.last.map((b) => b.id), ['b-noaccess']);
     await service.dispose();
+  });
+
+  test('a permission-denied push reads as rejected, not offline', () async {
+    final service = DesktopStrategyBoardSyncService(
+      authService: _signedInAuth(),
+      firestore: _firestore(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {'code': 403, 'message': 'denied'},
+            }),
+            403,
+          ),
+        ),
+      ),
+      pendingPushQueue: FakePendingPushQueue(),
+    );
+    await service.push(_board('b1', DateTime.utc(2026, 3, 4)));
+    expect(service.status.state, StrategyBoardSyncState.rejected);
   });
 }

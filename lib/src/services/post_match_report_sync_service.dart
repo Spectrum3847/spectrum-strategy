@@ -1,18 +1,46 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart' show PlatformException;
 
 import '../models/post_match_report.dart';
 import 'spectrum_auth_service.dart';
 
-enum PostMatchReportSyncState { signedOut, noAccess, syncing, synced, offline }
+enum PostMatchReportSyncState {
+  signedOut,
+
+  noAccess,
+  syncing,
+  synced,
+  offline,
+
+  rejected,
+}
 
 class PostMatchReportSyncStatus {
-  const PostMatchReportSyncStatus({required this.state, this.lastSyncedAt});
+  const PostMatchReportSyncStatus({
+    required this.state,
+    this.lastSyncedAt,
+    this.error,
+  });
 
   final PostMatchReportSyncState state;
   final DateTime? lastSyncedAt;
+  final String? error;
 }
+
+bool _isPermissionDenied(Object error) {
+  final errorText = error.toString().toLowerCase();
+  return (error is FirebaseException && error.code == 'permission-denied') ||
+      (error is PlatformException && error.code == 'permission-denied') ||
+      (errorText.contains('permission') && errorText.contains('denied'));
+}
+
+String _permissionErrorMessage(Object error) => switch (error) {
+  FirebaseException(:final message) => message ?? error.toString(),
+  PlatformException(:final message) => message ?? error.toString(),
+  _ => error.toString(),
+};
 
 abstract class PostMatchReportSyncService {
   Stream<PostMatchReportSyncStatus> get statusStream;
@@ -104,13 +132,23 @@ class FirestorePostMatchReportSyncService
         ),
       );
     } catch (error) {
-      _emit(
-        PostMatchReportSyncStatus(
-          state: PostMatchReportSyncState.offline,
-          lastSyncedAt: _status.lastSyncedAt,
-        ),
+      _emit(_pushFailure(error));
+    }
+  }
+
+  PostMatchReportSyncStatus _pushFailure(Object error) {
+    if (_isPermissionDenied(error)) {
+      return PostMatchReportSyncStatus(
+        state: PostMatchReportSyncState.rejected,
+        lastSyncedAt: _status.lastSyncedAt,
+        error: _permissionErrorMessage(error),
       );
     }
+    return PostMatchReportSyncStatus(
+      state: PostMatchReportSyncState.offline,
+      lastSyncedAt: _status.lastSyncedAt,
+      error: error.toString(),
+    );
   }
 
   @override

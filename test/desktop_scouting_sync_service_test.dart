@@ -219,7 +219,7 @@ void main() {
     expect(denied.status.state, ScoutingSyncState.rejected);
   });
 
-  test('a 401 on a write reads as rejected too, not offline', () async {
+  test('a 401 on a write reads as offline, not rejected', () async {
     final entry = ScoutEntry(
       id: 'e6',
       matchId: 'Q6',
@@ -240,7 +240,7 @@ void main() {
       ),
     );
     await denied.delete(entry);
-    expect(denied.status.state, ScoutingSyncState.rejected);
+    expect(denied.status.state, ScoutingSyncState.offline);
   });
 
   test('overlapping syncNow calls apply in call order, not arrival', () async {

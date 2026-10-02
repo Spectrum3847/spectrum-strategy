@@ -28,6 +28,13 @@ class PostMatchReportController extends ChangeNotifier {
 
   final Map<String, PostMatchReport> _confirmed = <String, PostMatchReport>{};
 
+  final Set<String> _unsyncedReportIds = <String>{};
+
+  final Set<String> _rejectedIds = <String>{};
+
+  bool _repushInFlight = false;
+  bool _repushPending = false;
+
   final FailedWriteTracker failedWrites = FailedWriteTracker();
 
   bool _ready = false;
@@ -60,14 +67,25 @@ class PostMatchReportController extends ChangeNotifier {
     _reports
       ..clear()
       ..addAll(loaded);
+
+    _unsyncedReportIds
+      ..clear()
+      ..addAll(await _storage.loadPendingIds());
     _ready = true;
     notifyListeners();
 
     final sync = _syncService;
     if (sync != null) {
       _statusSubscription = sync.statusStream.listen((status) {
+        final previousState = _syncStatus.state;
         _syncStatus = status;
         notifyListeners();
+
+        if (!_repushInFlight &&
+            status.state == PostMatchReportSyncState.synced &&
+            previousState != PostMatchReportSyncState.synced) {
+          unawaited(_repushUnsynced());
+        }
       });
       _remoteSubscription = sync.remoteReportsStream.listen(_mergeRemote);
       _syncStatus = sync.status;
@@ -75,6 +93,10 @@ class PostMatchReportController extends ChangeNotifier {
         await sync.initialize();
       } catch (_) {
         // Intentionally empty.
+      }
+
+      if (_syncStatus.state == PostMatchReportSyncState.synced) {
+        unawaited(_repushUnsynced());
       }
 
       notifyListeners();
@@ -137,6 +159,8 @@ class PostMatchReportController extends ChangeNotifier {
     _analytics.capture('post_match_report_saved');
     final sync = _syncService;
     if (sync != null) {
+      _unsyncedReportIds.add(id);
+      _persistPendingIds();
       unawaited(sync.push(snapshot));
     }
     return true;
@@ -144,7 +168,12 @@ class PostMatchReportController extends ChangeNotifier {
 
   Future<void> _mergeRemote(List<PostMatchReport> remote) async {
     var changed = false;
+    var pendingChanged = false;
     for (final incoming in remote) {
+      if (_unsyncedReportIds.remove(incoming.id)) {
+        pendingChanged = true;
+      }
+      _rejectedIds.remove(incoming.id);
       final index = _reports.indexWhere((local) => local.id == incoming.id);
       if (index < 0) {
         _nextMutation(incoming.id);
@@ -161,9 +190,22 @@ class PostMatchReportController extends ChangeNotifier {
         changed = true;
       }
     }
+    if (pendingChanged) {
+      _persistPendingIds();
+    }
     if (changed) {
       notifyListeners();
     }
+  }
+
+  void _persistPendingIds() {
+    final snapshot = _unsyncedReportIds.toSet();
+    _saveQueue = _saveQueue
+        .then((_) => _storage.savePendingIds(snapshot))
+        .catchError(
+          (Object e) =>
+              debugPrint('Post match report pending id save failed: $e'),
+        );
   }
 
   Future<bool> _enqueueSave(PostMatchReport report) {
@@ -184,6 +226,46 @@ class PostMatchReportController extends ChangeNotifier {
         );
     _saveQueue = result;
     return result;
+  }
+
+  Future<void> _repushUnsynced() async {
+    if (_repushInFlight) {
+      _repushPending = true;
+      return;
+    }
+    _repushInFlight = true;
+    try {
+      do {
+        _repushPending = false;
+        final sync = _syncService;
+        if (sync == null) return;
+        final targetIds = _unsyncedReportIds.difference(_rejectedIds);
+        if (targetIds.isEmpty) continue;
+
+        await _saveQueue;
+        for (final id in targetIds) {
+          final index = _reports.indexWhere((report) => report.id == id);
+          if (index < 0) {
+            if (_unsyncedReportIds.remove(id)) {
+              _persistPendingIds();
+            }
+            continue;
+          }
+          final snapshot = PostMatchReport.fromJson(_reports[index].toJson());
+          await sync.push(snapshot);
+
+          if (sync.status.state == PostMatchReportSyncState.synced) {
+            _unsyncedReportIds.remove(id);
+            _rejectedIds.remove(id);
+            _persistPendingIds();
+          } else if (sync.status.state == PostMatchReportSyncState.rejected) {
+            _rejectedIds.add(id);
+          }
+        }
+      } while (_repushPending);
+    } finally {
+      _repushInFlight = false;
+    }
   }
 
   int _nextMutation(String id) {

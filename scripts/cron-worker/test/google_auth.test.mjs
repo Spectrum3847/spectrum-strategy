@@ -4,6 +4,7 @@ import { generateKeyPairSync, createVerify } from 'node:crypto';
 
 import {
   signServiceAccountJwt,
+  mintCustomToken,
   getAccessToken,
   clearTokenCacheForTests,
   SCOPE,
@@ -153,4 +154,31 @@ test('a hanging token exchange aborts after the request timeout instead of hangi
   } finally {
     mock.timers.reset();
   }
+});
+
+test('mintCustomToken signs a Firebase Auth custom token for the given uid, distinct from the OAuth JWT', async () => {
+  const { publicKey, serviceAccount } = makeServiceAccount();
+  const nowSeconds = 1_700_000_000;
+  const jwt = await mintCustomToken(serviceAccount, 'canary-uid', { nowSeconds });
+
+  const [headerPart, payloadPart, signaturePart] = jwt.split('.');
+  const header = JSON.parse(base64UrlDecode(headerPart).toString('utf8'));
+  const payload = JSON.parse(base64UrlDecode(payloadPart).toString('utf8'));
+
+  assert.deepEqual(header, { alg: 'RS256', typ: 'JWT' });
+  assert.equal(payload.iss, serviceAccount.client_email);
+  assert.equal(payload.sub, serviceAccount.client_email);
+  assert.equal(payload.uid, 'canary-uid');
+
+  assert.notEqual(payload.aud, TOKEN_URL);
+  assert.match(payload.aud, /identitytoolkit/);
+  assert.equal(payload.iat, nowSeconds - 30);
+
+  assert.equal(payload.exp, payload.iat + 3600);
+  assert.equal(payload.exp, nowSeconds + 3570);
+  assert.equal(payload.exp - payload.iat, 3600);
+
+  const verifier = createVerify('RSA-SHA256');
+  verifier.update(`${headerPart}.${payloadPart}`);
+  assert.equal(verifier.verify(publicKey, base64UrlDecode(signaturePart)), true);
 });

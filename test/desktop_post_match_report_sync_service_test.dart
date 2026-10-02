@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 
 import 'package:spectrumstrategy/src/models/post_match_report.dart';
 import 'package:spectrumstrategy/src/services/desktop_post_match_report_sync_service.dart';
+import 'package:spectrumstrategy/src/services/post_match_report_sync_service.dart';
 import 'package:spectrumstrategy/src/services/spectrum_auth_service.dart';
 
 import 'support/fake_pending_push_queue.dart';
@@ -259,4 +260,24 @@ void main() {
       );
     },
   );
+
+  test('a permission-denied push reads as rejected, not offline', () async {
+    final service = DesktopPostMatchReportSyncService(
+      authService: _signedInAuth(),
+      firestore: _firestore(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {'code': 403, 'message': 'denied'},
+            }),
+            403,
+          ),
+        ),
+      ),
+      pendingPushQueue: FakePendingPushQueue(),
+    );
+    await service.push(report);
+
+    expect(service.status.state, PostMatchReportSyncState.rejected);
+  });
 }

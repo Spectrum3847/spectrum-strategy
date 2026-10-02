@@ -31,6 +31,10 @@ class FakePrescoutingSyncService implements PrescoutingSyncService {
   int initializeCalls = 0;
   int syncNowCalls = 0;
 
+  bool simulateOutage = false;
+
+  bool simulateRejection = false;
+
   @override
   Stream<PrescoutingSyncStatus> get statusStream => _statusController.stream;
 
@@ -62,12 +66,50 @@ class FakePrescoutingSyncService implements PrescoutingSyncService {
 
   @override
   Future<void> push(PrescoutEntry entry) async {
+    if (simulateRejection) {
+      emitStatus(
+        const PrescoutingSyncStatus(
+          state: PrescoutingSyncState.rejected,
+          error: 'permission-denied: push rejected',
+        ),
+      );
+      return;
+    }
+    if (simulateOutage) {
+      emitStatus(
+        const PrescoutingSyncStatus(
+          state: PrescoutingSyncState.offline,
+          error: 'push failed',
+        ),
+      );
+      return;
+    }
     pushed.add(entry);
+    emitStatus(const PrescoutingSyncStatus(state: PrescoutingSyncState.synced));
   }
 
   @override
   Future<void> delete(PrescoutEntry entry) async {
+    if (simulateRejection) {
+      emitStatus(
+        const PrescoutingSyncStatus(
+          state: PrescoutingSyncState.rejected,
+          error: 'permission-denied: delete rejected',
+        ),
+      );
+      return;
+    }
+    if (simulateOutage) {
+      emitStatus(
+        const PrescoutingSyncStatus(
+          state: PrescoutingSyncState.offline,
+          error: 'delete failed',
+        ),
+      );
+      return;
+    }
     deleted.add(entry);
+    emitStatus(const PrescoutingSyncStatus(state: PrescoutingSyncState.synced));
   }
 
   @override

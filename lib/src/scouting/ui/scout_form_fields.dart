@@ -277,28 +277,13 @@ class ScoutFormSection extends StatelessWidget {
             ),
           );
         }
-        final currentMatch = (value is num)
-            ? value.toInt()
-            : int.tryParse(value?.toString() ?? '');
-        return DropdownButtonFormField<int>(
-          key: ValueKey<String>('$keyPrefix-${field.code}'),
-          initialValue: matchNumbers.contains(currentMatch)
-              ? currentMatch
-              : null,
-          isExpanded: true,
-          style: _valueStyle(context),
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-          hint: const Text('Select a match'),
-          items: <DropdownMenuItem<int>>[
-            for (final number in matchNumbers)
-              DropdownMenuItem<int>(
-                value: number,
-                child: Text('Match $number'),
-              ),
-          ],
-          onChanged: (v) {
-            if (v != null) onFieldChanged(field.code, v);
-          },
+        return _TbaMatchNumberField(
+          keyPrefix: keyPrefix,
+          code: field.code,
+          matchNumbers: matchNumbers,
+          controller: textControllers[field.code],
+          value: value,
+          onChanged: (v) => onFieldChanged(field.code, v),
         );
 
       case ScoutFieldType.tbaTeamAndRobot:
@@ -598,6 +583,106 @@ class _CheckboxSelectField extends StatelessWidget {
               onChanged(next);
             },
           ),
+      ],
+    );
+  }
+}
+
+class _TbaMatchNumberField extends StatefulWidget {
+  const _TbaMatchNumberField({
+    required this.keyPrefix,
+    required this.code,
+    required this.matchNumbers,
+    required this.controller,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String keyPrefix;
+  final String code;
+  final List<int> matchNumbers;
+  final TextEditingController? controller;
+  final dynamic value;
+  final ValueChanged<dynamic> onChanged;
+
+  @override
+  State<_TbaMatchNumberField> createState() => _TbaMatchNumberFieldState();
+}
+
+class _TbaMatchNumberFieldState extends State<_TbaMatchNumberField> {
+  late bool _manual = _isOutOfBand(widget.value);
+
+  bool _isOutOfBand(dynamic value) {
+    final n = value is num
+        ? value.toInt()
+        : int.tryParse(value?.toString() ?? '');
+    if (n == null || n <= 0) return false;
+    return !widget.matchNumbers.contains(n);
+  }
+
+  @override
+  void didUpdateWidget(_TbaMatchNumberField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (!_manual && _isOutOfBand(widget.value)) {
+      _manual = true;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final key = ValueKey<String>('${widget.keyPrefix}-${widget.code}');
+    if (_manual) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            key: key,
+            controller: widget.controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: false),
+            style: _valueStyle(context),
+            decoration: const InputDecoration(
+              hintText: 'Match number',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          TextButton(
+            onPressed: () => setState(() => _manual = false),
+            child: const Text('Choose from the event schedule instead'),
+          ),
+        ],
+      );
+    }
+    final currentMatch = widget.value is num
+        ? widget.value.toInt()
+        : int.tryParse(widget.value?.toString() ?? '');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<int>(
+          key: key,
+          initialValue: widget.matchNumbers.contains(currentMatch)
+              ? currentMatch
+              : null,
+          isExpanded: true,
+          style: _valueStyle(context),
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+          hint: const Text('Select a match'),
+          items: <DropdownMenuItem<int>>[
+            for (final number in widget.matchNumbers)
+              DropdownMenuItem<int>(
+                value: number,
+                child: Text('Match $number'),
+              ),
+          ],
+          onChanged: (v) {
+            if (v != null) widget.onChanged(v);
+          },
+        ),
+        TextButton(
+          onPressed: () => setState(() => _manual = true),
+          child: const Text('Record an out-of-band match instead'),
+        ),
       ],
     );
   }

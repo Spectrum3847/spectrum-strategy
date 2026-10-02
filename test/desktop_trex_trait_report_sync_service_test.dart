@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spectrumstrategy/src/models/trex_trait_report.dart';
 import 'package:spectrumstrategy/src/services/desktop_trex_trait_report_sync_service.dart';
 import 'package:spectrumstrategy/src/services/spectrum_auth_service.dart';
+import 'package:spectrumstrategy/src/services/trex_trait_report_sync_service.dart';
 
 import 'support/fake_pending_push_queue.dart';
 import 'support/fake_spectrum_auth_service.dart';
@@ -294,5 +295,25 @@ void main() {
 
     expect(sawDelete, isTrue);
     expect(await queue.pending('trexTraitReports_deleted'), isEmpty);
+  });
+
+  test('a permission-denied push reads as rejected, not offline', () async {
+    final service = DesktopTrexTraitReportSyncService(
+      authService: _signedInAuth(),
+      firestore: _firestore(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {'code': 403, 'message': 'denied'},
+            }),
+            403,
+          ),
+        ),
+      ),
+      pendingPushQueue: FakePendingPushQueue(),
+    );
+    await service.push(report);
+
+    expect(service.status.state, TrexTraitReportSyncState.rejected);
   });
 }

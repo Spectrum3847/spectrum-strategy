@@ -6,7 +6,16 @@ import 'package:flutter/services.dart' show PlatformException;
 import '../models/trex_trait_report.dart';
 import 'spectrum_auth_service.dart';
 
-enum TrexTraitReportSyncState { signedOut, noAccess, syncing, synced, offline }
+enum TrexTraitReportSyncState {
+  signedOut,
+
+  noAccess,
+  syncing,
+  synced,
+  offline,
+
+  rejected,
+}
 
 class TrexTraitReportSyncStatus {
   const TrexTraitReportSyncStatus({
@@ -22,6 +31,19 @@ class TrexTraitReportSyncStatus {
 
   final int pendingWrites;
 }
+
+bool _isPermissionDenied(Object error) {
+  final errorText = error.toString().toLowerCase();
+  return (error is FirebaseException && error.code == 'permission-denied') ||
+      (error is PlatformException && error.code == 'permission-denied') ||
+      (errorText.contains('permission') && errorText.contains('denied'));
+}
+
+String _permissionErrorMessage(Object error) => switch (error) {
+  FirebaseException(:final message) => message ?? error.toString(),
+  PlatformException(:final message) => message ?? error.toString(),
+  _ => error.toString(),
+};
 
 abstract class TrexTraitReportSyncService {
   Stream<TrexTraitReportSyncStatus> get statusStream;
@@ -116,13 +138,7 @@ class FirestoreTrexTraitReportSyncService
         ),
       );
     } catch (error) {
-      _emit(
-        TrexTraitReportSyncStatus(
-          state: TrexTraitReportSyncState.offline,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.toString(),
-        ),
-      );
+      _emit(_pushOrDeleteFailure(error));
     }
   }
 
@@ -140,14 +156,23 @@ class FirestoreTrexTraitReportSyncService
         ),
       );
     } catch (error) {
-      _emit(
-        TrexTraitReportSyncStatus(
-          state: TrexTraitReportSyncState.offline,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.toString(),
-        ),
+      _emit(_pushOrDeleteFailure(error));
+    }
+  }
+
+  TrexTraitReportSyncStatus _pushOrDeleteFailure(Object error) {
+    if (_isPermissionDenied(error)) {
+      return TrexTraitReportSyncStatus(
+        state: TrexTraitReportSyncState.rejected,
+        lastSyncedAt: _status.lastSyncedAt,
+        error: _permissionErrorMessage(error),
       );
     }
+    return TrexTraitReportSyncStatus(
+      state: TrexTraitReportSyncState.offline,
+      lastSyncedAt: _status.lastSyncedAt,
+      error: error.toString(),
+    );
   }
 
   @override

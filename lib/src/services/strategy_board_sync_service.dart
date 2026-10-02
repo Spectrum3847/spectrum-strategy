@@ -1,11 +1,21 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart' show PlatformException;
 
 import '../models/strategy_session.dart';
 import 'spectrum_auth_service.dart';
 
-enum StrategyBoardSyncState { signedOut, noAccess, syncing, synced, offline }
+enum StrategyBoardSyncState {
+  signedOut,
+
+  noAccess,
+  syncing,
+  synced,
+  offline,
+
+  rejected,
+}
 
 class StrategyBoardSyncStatus {
   const StrategyBoardSyncStatus({
@@ -18,6 +28,19 @@ class StrategyBoardSyncStatus {
   final DateTime? lastSyncedAt;
   final String? error;
 }
+
+bool _isPermissionDenied(Object error) {
+  final errorText = error.toString().toLowerCase();
+  return (error is FirebaseException && error.code == 'permission-denied') ||
+      (error is PlatformException && error.code == 'permission-denied') ||
+      (errorText.contains('permission') && errorText.contains('denied'));
+}
+
+String _permissionErrorMessage(Object error) => switch (error) {
+  FirebaseException(:final message) => message ?? error.toString(),
+  PlatformException(:final message) => message ?? error.toString(),
+  _ => error.toString(),
+};
 
 abstract class StrategyBoardSyncService {
   Stream<StrategyBoardSyncStatus> get statusStream;
@@ -100,7 +123,7 @@ class FirestoreStrategyBoardSyncService implements StrategyBoardSyncService {
         ),
       );
     } catch (error) {
-      _emitFailure(error);
+      _emit(_pushOrDeleteFailure(error));
     }
   }
 
@@ -119,8 +142,23 @@ class FirestoreStrategyBoardSyncService implements StrategyBoardSyncService {
         ),
       );
     } catch (error) {
-      _emitFailure(error);
+      _emit(_pushOrDeleteFailure(error));
     }
+  }
+
+  StrategyBoardSyncStatus _pushOrDeleteFailure(Object error) {
+    if (_isPermissionDenied(error)) {
+      return StrategyBoardSyncStatus(
+        state: StrategyBoardSyncState.rejected,
+        lastSyncedAt: _status.lastSyncedAt,
+        error: _permissionErrorMessage(error),
+      );
+    }
+    return StrategyBoardSyncStatus(
+      state: StrategyBoardSyncState.offline,
+      lastSyncedAt: _status.lastSyncedAt,
+      error: error.toString(),
+    );
   }
 
   @override

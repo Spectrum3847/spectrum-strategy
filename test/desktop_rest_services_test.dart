@@ -264,7 +264,8 @@ void main() {
         ),
       );
       await denied.delete(list);
-      expect(denied.status.state, PickListSyncState.noAccess);
+
+      expect(denied.status.state, PickListSyncState.rejected);
     });
 
     test(
@@ -465,7 +466,8 @@ void main() {
         ),
       );
       await denied.delete(entry);
-      expect(denied.status.state, PitScoutingSyncState.noAccess);
+
+      expect(denied.status.state, PitScoutingSyncState.rejected);
     });
 
     test('failed push retries on next sync and clears on success', () async {

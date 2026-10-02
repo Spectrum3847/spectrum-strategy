@@ -1,4 +1,4 @@
-import { encodeFields, decodeFields, decodeValue } from '../../src/firestore.mjs';
+import { encodeFields, encodeValue, decodeFields, decodeValue } from '../../src/firestore.mjs';
 
 function parseRequest(urlStr) {
   const url = new URL(urlStr);
@@ -21,6 +21,29 @@ function resourceNameToPath(name) {
 
 function jsonResponse(status, body) {
   return new Response(JSON.stringify(body), { status });
+}
+
+function matchesFilter(fields, filter) {
+  if (!filter) return true;
+
+  const actual = decodeValue(encodeValue(fields[filter.field.fieldPath]));
+  const wanted = decodeValue(filter.value);
+  switch (filter.op) {
+    case 'EQUAL':
+      return actual === wanted;
+    case 'NOT_EQUAL':
+      return actual !== wanted;
+    case 'GREATER_THAN':
+      return actual > wanted;
+    case 'GREATER_THAN_OR_EQUAL':
+      return actual >= wanted;
+    case 'LESS_THAN':
+      return actual < wanted;
+    case 'LESS_THAN_OR_EQUAL':
+      return actual <= wanted;
+    default:
+      return actual === wanted;
+  }
 }
 
 function createFakeFirestore(seed = {}) {
@@ -53,24 +76,29 @@ function createFakeFirestore(seed = {}) {
       return jsonResponse(200, {});
     }
 
+    if (action === 'listCollectionIds') {
+      store[project] ??= {};
+      const nonEmpty = Object.entries(store[project])
+        .filter(([, docs]) => Object.keys(docs).length > 0)
+        .map(([collection]) => collection);
+      return jsonResponse(200, { collectionIds: nonEmpty });
+    }
+
     if (action === 'runQuery') {
       const body = JSON.parse(init.body);
-      const { from, where } = body.structuredQuery;
+      const { from, where, limit } = body.structuredQuery;
       const collection = from[0].collectionId;
       const docs = collectionOf(project, collection);
       const filter = where?.fieldFilter;
-      const rows = Object.entries(docs)
-        .filter(([, fields]) => {
-          if (!filter) return true;
-          const wanted = decodeValue(filter.value);
-          return fields[filter.field.fieldPath] === wanted;
-        })
+      let rows = Object.entries(docs)
+        .filter(([, fields]) => matchesFilter(fields, filter))
         .map(([id, fields]) => ({
           document: {
             name: `projects/${project}/databases/(default)/documents/${collection}/${id}`,
             fields: encodeFields(fields),
           },
         }));
+      if (Number.isInteger(limit)) rows = rows.slice(0, limit);
       return jsonResponse(200, rows);
     }
 
@@ -85,11 +113,19 @@ function createFakeFirestore(seed = {}) {
 
       const [collection] = restSegments;
       const docs = collectionOf(project, collection);
-      const documents = Object.entries(docs).map(([id, fields]) => ({
+      const ids = Object.keys(docs).sort();
+      const url = new URL(urlStr);
+      const pageSize = Number(url.searchParams.get('pageSize')) || ids.length || 1;
+      const offset = Number(url.searchParams.get('pageToken')) || 0;
+      const page = ids.slice(offset, offset + pageSize);
+      const documents = page.map((id) => ({
         name: `projects/${project}/databases/(default)/documents/${collection}/${id}`,
-        fields: encodeFields(fields),
+        fields: encodeFields(docs[id]),
       }));
-      return jsonResponse(200, { documents });
+      const nextOffset = offset + pageSize;
+      const body = { documents };
+      if (nextOffset < ids.length) body.nextPageToken = String(nextOffset);
+      return jsonResponse(200, body);
     }
 
     const [collection, ...idParts] = restSegments;

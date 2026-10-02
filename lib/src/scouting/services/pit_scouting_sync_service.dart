@@ -1,11 +1,21 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart' show PlatformException;
 
 import '../../services/spectrum_auth_service.dart';
 import '../models/pit_scout_entry.dart';
 
-enum PitScoutingSyncState { signedOut, noAccess, syncing, synced, offline }
+enum PitScoutingSyncState {
+  signedOut,
+
+  noAccess,
+  syncing,
+  synced,
+  offline,
+
+  rejected,
+}
 
 class PitScoutingSyncStatus {
   const PitScoutingSyncStatus({
@@ -18,6 +28,19 @@ class PitScoutingSyncStatus {
   final DateTime? lastSyncedAt;
   final String? error;
 }
+
+bool _isPermissionDenied(Object error) {
+  final errorText = error.toString().toLowerCase();
+  return (error is FirebaseException && error.code == 'permission-denied') ||
+      (error is PlatformException && error.code == 'permission-denied') ||
+      (errorText.contains('permission') && errorText.contains('denied'));
+}
+
+String _permissionErrorMessage(Object error) => switch (error) {
+  FirebaseException(:final message) => message ?? error.toString(),
+  PlatformException(:final message) => message ?? error.toString(),
+  _ => error.toString(),
+};
 
 abstract class PitScoutingSyncService {
   Stream<PitScoutingSyncStatus> get statusStream;
@@ -110,13 +133,7 @@ class FirestorePitScoutingSyncService implements PitScoutingSyncService {
         ),
       );
     } catch (error) {
-      _emit(
-        PitScoutingSyncStatus(
-          state: PitScoutingSyncState.offline,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.toString(),
-        ),
-      );
+      _emit(_pushOrDeleteFailure(error));
     }
   }
 
@@ -136,14 +153,23 @@ class FirestorePitScoutingSyncService implements PitScoutingSyncService {
         ),
       );
     } catch (error) {
-      _emit(
-        PitScoutingSyncStatus(
-          state: PitScoutingSyncState.offline,
-          lastSyncedAt: _status.lastSyncedAt,
-          error: error.toString(),
-        ),
+      _emit(_pushOrDeleteFailure(error));
+    }
+  }
+
+  PitScoutingSyncStatus _pushOrDeleteFailure(Object error) {
+    if (_isPermissionDenied(error)) {
+      return PitScoutingSyncStatus(
+        state: PitScoutingSyncState.rejected,
+        lastSyncedAt: _status.lastSyncedAt,
+        error: _permissionErrorMessage(error),
       );
     }
+    return PitScoutingSyncStatus(
+      state: PitScoutingSyncState.offline,
+      lastSyncedAt: _status.lastSyncedAt,
+      error: error.toString(),
+    );
   }
 
   @override

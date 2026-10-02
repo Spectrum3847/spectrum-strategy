@@ -28,7 +28,10 @@ class FakeTrexTraitReportSyncService implements TrexTraitReportSyncService {
   final List<TrexTraitReport> deleted = <TrexTraitReport>[];
   int initializeCalls = 0;
   int syncNowCalls = 0;
+
   bool simulateOutage = false;
+
+  bool simulateRejection = false;
 
   @override
   Stream<TrexTraitReportSyncStatus> get statusStream =>
@@ -59,9 +62,18 @@ class FakeTrexTraitReportSyncService implements TrexTraitReportSyncService {
 
   @override
   Future<void> push(TrexTraitReport report) async {
+    if (simulateRejection) {
+      emitStatus(
+        const TrexTraitReportSyncStatus(
+          state: TrexTraitReportSyncState.rejected,
+          error: 'permission-denied: push rejected',
+        ),
+      );
+      return;
+    }
     if (simulateOutage) {
       emitStatus(
-        TrexTraitReportSyncStatus(
+        const TrexTraitReportSyncStatus(
           state: TrexTraitReportSyncState.offline,
           error: 'push failed',
         ),
@@ -69,11 +81,35 @@ class FakeTrexTraitReportSyncService implements TrexTraitReportSyncService {
       return;
     }
     pushed.add(report);
+    emitStatus(
+      const TrexTraitReportSyncStatus(state: TrexTraitReportSyncState.synced),
+    );
   }
 
   @override
   Future<void> delete(TrexTraitReport report) async {
+    if (simulateRejection) {
+      emitStatus(
+        const TrexTraitReportSyncStatus(
+          state: TrexTraitReportSyncState.rejected,
+          error: 'permission-denied: delete rejected',
+        ),
+      );
+      return;
+    }
+    if (simulateOutage) {
+      emitStatus(
+        const TrexTraitReportSyncStatus(
+          state: TrexTraitReportSyncState.offline,
+          error: 'delete failed',
+        ),
+      );
+      return;
+    }
     deleted.add(report);
+    emitStatus(
+      const TrexTraitReportSyncStatus(state: TrexTraitReportSyncState.synced),
+    );
   }
 
   @override

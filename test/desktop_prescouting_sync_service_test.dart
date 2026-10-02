@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:spectrumstrategy/src/scouting/models/prescout_entry.dart';
 import 'package:spectrumstrategy/src/scouting/services/desktop_prescouting_sync_service.dart';
+import 'package:spectrumstrategy/src/scouting/services/prescouting_sync_service.dart';
 import 'package:spectrumstrategy/src/services/spectrum_auth_service.dart';
 
 import 'support/fake_pending_push_queue.dart';
@@ -449,5 +450,26 @@ void main() {
 
     expect(emissions.expand((e) => e), isEmpty);
     await service.dispose();
+  });
+
+  test('a permission-denied push reads as rejected, not offline', () async {
+    final entry = PrescoutEntry(id: 'p1', teamNumber: 3847);
+    final service = DesktopPrescoutingSyncService(
+      authService: _signedInAuth(),
+      firestore: _firestore(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': {'code': 403, 'message': 'denied'},
+            }),
+            403,
+          ),
+        ),
+      ),
+      pendingPushQueue: FakePendingPushQueue(),
+    );
+    await service.push(entry);
+
+    expect(service.status.state, PrescoutingSyncState.rejected);
   });
 }

@@ -16,9 +16,25 @@ class StrategyController extends ChangeNotifier with WidgetsBindingObserver {
     MatchDirectory? directory,
     this._latestFieldIdLoader,
     this._syncService,
-  }) : _directory = directory ?? SharedPreferencesMatchDirectory();
+    Future<Set<String>> Function()? loadPendingBoardIds,
+    Future<void> Function(Set<String> ids)? savePendingBoardIds,
+  }) : _directory = directory ?? SharedPreferencesMatchDirectory() {
+    final resolvedDirectory = _directory;
+    _loadPendingBoardIds =
+        loadPendingBoardIds ??
+        (resolvedDirectory is SharedPreferencesMatchDirectory
+            ? resolvedDirectory.loadPendingBoardIds
+            : (() async => <String>{}));
+    _savePendingBoardIds =
+        savePendingBoardIds ??
+        (resolvedDirectory is SharedPreferencesMatchDirectory
+            ? resolvedDirectory.savePendingBoardIds
+            : ((_) async {}));
+  }
 
   final MatchDirectory _directory;
+  late final Future<Set<String>> Function() _loadPendingBoardIds;
+  late final Future<void> Function(Set<String> ids) _savePendingBoardIds;
 
   final Future<String> Function()? _latestFieldIdLoader;
   String _latestFieldId = kLatestFieldId;
@@ -63,6 +79,13 @@ class StrategyController extends ChangeNotifier with WidgetsBindingObserver {
       {};
   Future<void>? _remoteWriteQueue;
   static const _syncDebounce = Duration(milliseconds: 500);
+
+  final Set<String> _unsyncedBoardIds = <String>{};
+
+  final Set<String> _rejectedIds = <String>{};
+
+  bool _repushInFlight = false;
+  bool _repushPending = false;
 
   final Map<String, ({Timer timer, StrategySession snapshot})>
   _pendingLocalSaves = {};
@@ -128,9 +151,19 @@ class StrategyController extends ChangeNotifier with WidgetsBindingObserver {
 
     final sync = _syncService;
     if (sync != null) {
+      _unsyncedBoardIds
+        ..clear()
+        ..addAll(await _loadPendingBoardIds());
       _statusSubscription = sync.statusStream.listen((status) {
+        final previousState = _syncStatus.state;
         _syncStatus = status;
         notifyListeners();
+
+        if (!_repushInFlight &&
+            status.state == StrategyBoardSyncState.synced &&
+            previousState != StrategyBoardSyncState.synced) {
+          unawaited(_repushUnsynced());
+        }
       });
       _remoteSubscription = sync.remoteBoardsStream.listen((boards) {
         for (final pending in _remotePending) {
@@ -141,12 +174,27 @@ class StrategyController extends ChangeNotifier with WidgetsBindingObserver {
         }
         _remotePending.clear();
         _remoteBoards = boards;
+
+        var pendingChanged = false;
+        for (final board in boards) {
+          if (_unsyncedBoardIds.remove(board.id)) {
+            pendingChanged = true;
+          }
+          _rejectedIds.remove(board.id);
+        }
+        if (pendingChanged) {
+          _persistPendingBoardIds();
+        }
         notifyListeners();
       });
       _syncStatus = sync.status;
       try {
         await sync.initialize();
       } catch (_) {}
+
+      if (_syncStatus.state == StrategyBoardSyncState.synced) {
+        unawaited(_repushUnsynced());
+      }
     }
   }
 
@@ -212,6 +260,11 @@ class StrategyController extends ChangeNotifier with WidgetsBindingObserver {
 
     await _enqueueDirectoryWrite(() => _directory.deleteMatch(id));
     _pendingUploads.remove(id)?.timer.cancel();
+
+    if (_unsyncedBoardIds.remove(id)) {
+      _persistPendingBoardIds();
+    }
+    _rejectedIds.remove(id);
     final sync = _syncService;
     if (sync != null) {
       _enqueueRemoteWrite(() => sync.delete(StrategySession.create(id: id)));
@@ -779,10 +832,62 @@ class StrategyController extends ChangeNotifier with WidgetsBindingObserver {
     if (sync == null) {
       return;
     }
+
+    _unsyncedBoardIds.add(snapshot.id);
+    _persistPendingBoardIds();
     try {
       await sync.push(snapshot);
+
+      if (sync.status.state == StrategyBoardSyncState.synced) {
+        _unsyncedBoardIds.remove(snapshot.id);
+        _rejectedIds.remove(snapshot.id);
+        _persistPendingBoardIds();
+      } else if (sync.status.state == StrategyBoardSyncState.rejected) {
+        _rejectedIds.add(snapshot.id);
+      }
     } catch (e) {
       debugPrint('Strategy board push failed: $e');
+    }
+  }
+
+  void _persistPendingBoardIds() {
+    final snapshot = _unsyncedBoardIds.toSet();
+    _saveQueue = _saveQueue
+        .then((_) => _savePendingBoardIds(snapshot))
+        .catchError(
+          (Object e) => debugPrint('Strategy pending board id save failed: $e'),
+        );
+  }
+
+  Future<void> _repushUnsynced() async {
+    if (_repushInFlight) {
+      _repushPending = true;
+      return;
+    }
+    _repushInFlight = true;
+    try {
+      do {
+        _repushPending = false;
+        final sync = _syncService;
+        if (sync == null) return;
+        final targetIds = _unsyncedBoardIds.difference(_rejectedIds);
+        if (targetIds.isEmpty) continue;
+        for (final id in targetIds) {
+          final board = await _directory.loadMatch(id);
+          if (board == null) {
+            if (_unsyncedBoardIds.remove(id)) {
+              _persistPendingBoardIds();
+            }
+            continue;
+          }
+          final snapshot = StrategySession.fromJson(board.toJson());
+          _enqueueRemoteWrite(() => _pushToFirestore(snapshot));
+        }
+
+        await (_remoteWriteQueue ?? Future<void>.value());
+      } while (_repushPending);
+    } finally {
+      _repushInFlight = false;
     }
   }
 

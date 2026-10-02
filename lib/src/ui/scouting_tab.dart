@@ -1,12 +1,16 @@
+import 'dart:async' show unawaited;
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
 import '../scouting/models/accuracy_alert.dart';
+import '../scouting/models/pit_scout_entry.dart';
 import '../scouting/models/scout_config.dart';
 import '../scouting/models/scout_schedule.dart';
 import '../scouting/models/scout_entry.dart';
 import '../scouting/services/scouting_sync_service.dart';
+import '../scouting/state/pit_scout_config_controller.dart';
+import '../scouting/state/pit_scouting_controller.dart';
 import '../scouting/state/scout_config_controller.dart';
 import '../scouting/state/scout_drawing_controller.dart';
 import '../scouting/state/scouting_controller.dart';
@@ -28,6 +32,7 @@ import '../widgets/notice_row.dart';
 import '../widgets/sync_status_pill.dart';
 import 'event_picker_dialog.dart';
 import 'glass_chrome.dart';
+import 'pit_entry_card.dart';
 
 class ScoutingTab extends StatefulWidget {
   const ScoutingTab({
@@ -35,6 +40,8 @@ class ScoutingTab extends StatefulWidget {
     required this.scoutingController,
     required this.configController,
     required this.eventController,
+    this.pitScoutingController,
+    this.pitScoutConfigController,
     super.key,
   });
 
@@ -42,6 +49,9 @@ class ScoutingTab extends StatefulWidget {
   final ScoutingController scoutingController;
   final ScoutConfigController configController;
   final EventController eventController;
+
+  final PitScoutingController? pitScoutingController;
+  final PitScoutConfigController? pitScoutConfigController;
 
   @override
   State<ScoutingTab> createState() => _ScoutingTabState();
@@ -56,6 +66,11 @@ class _ScoutingTabState extends State<ScoutingTab> {
   String _configFingerprint = '';
   final ScoutDrawingController _drawingController = ScoutDrawingController();
 
+  bool _matchNumberIsFresh = false;
+
+  bool _matchNumberFromAnchor = false;
+  bool _writingAnchoredMatchNumber = false;
+
   ScoutConfig get _config => widget.configController.config;
   EventController get _eventCtrl => widget.eventController;
 
@@ -63,8 +78,56 @@ class _ScoutingTabState extends State<ScoutingTab> {
   void initState() {
     super.initState();
     widget.configController.addListener(_onConfigChanged);
+    widget.eventController.addListener(_onScheduleChanged);
     _initValues(_config);
     _configFingerprint = _formFingerprint(_config);
+
+    _onScheduleChanged();
+  }
+
+  void _onScheduleChanged() {
+    if (!_eventCtrl.hasMatches) return;
+    unawaited(widget.scoutingController.backfillMatchKeys(_eventCtrl.matches));
+    _applyScheduleDefaultIfFresh();
+  }
+
+  int? _scheduleAnchoredMatchNumber(String station) {
+    if (!_eventCtrl.hasMatches) return null;
+    return widget.scoutingController.nextMatchNumberFor(
+      station: station,
+      schedule: _eventCtrl.matches,
+    );
+  }
+
+  void _applyScheduleDefaultIfFresh() {
+    if (!_matchNumberIsFresh) return;
+    final scheduled = _scheduleAnchoredMatchNumber(
+      ScoutingController.stationOf(_values),
+    );
+    if (scheduled == null) return;
+    _writeAnchoredMatchNumber(scheduled);
+  }
+
+  void _writeAnchoredMatchNumber(int number) {
+    _writingAnchoredMatchNumber = true;
+    try {
+      _textControllers['matchNumber']?.text = number.toString();
+    } finally {
+      _writingAnchoredMatchNumber = false;
+    }
+    _matchNumberFromAnchor = true;
+  }
+
+  void _reanchorForStationChange() {
+    if (!_matchNumberFromAnchor) return;
+    final scheduled = _scheduleAnchoredMatchNumber(
+      ScoutingController.stationOf(_values),
+    );
+    if (scheduled == null ||
+        scheduled.toString() == _textControllers['matchNumber']?.text) {
+      return;
+    }
+    _writeAnchoredMatchNumber(scheduled);
   }
 
   static String _formFingerprint(ScoutConfig config) => jsonEncode(
@@ -74,6 +137,7 @@ class _ScoutingTabState extends State<ScoutingTab> {
   @override
   void dispose() {
     widget.configController.removeListener(_onConfigChanged);
+    widget.eventController.removeListener(_onScheduleChanged);
     for (final c in _textControllers.values) {
       c.dispose();
     }
@@ -92,10 +156,13 @@ class _ScoutingTabState extends State<ScoutingTab> {
       _textControllers.clear();
       _initValues(_config);
     });
+    _applyScheduleDefaultIfFresh();
   }
 
   void _initValues(ScoutConfig config) {
     _values = {};
+    _matchNumberIsFresh = true;
+    _matchNumberFromAnchor = false;
     for (final field in config.allFields) {
       _values[field.code] = field.effectiveDefault;
 
@@ -109,6 +176,8 @@ class _ScoutingTabState extends State<ScoutingTab> {
         if (field.code == 'matchNumber') {
           ctrl.addListener(() {
             _values[field.code] = ctrl.text;
+            _matchNumberIsFresh = false;
+            if (!_writingAnchoredMatchNumber) _matchNumberFromAnchor = false;
             _onMatchOrStationChanged();
           });
         } else {
@@ -174,47 +243,19 @@ class _ScoutingTabState extends State<ScoutingTab> {
   StatboticsMatch? _lookupScheduledMatch() {
     if (!_eventCtrl.hasMatches) return null;
     final typed = _values['matchNumber']?.toString().trim() ?? '';
-
-    final candidates = MatchIdResolver(_eventCtrl.matches).candidates(typed);
-    if (candidates.isEmpty) return null;
-    if (candidates.length == 1) return candidates.first;
-
     final station = _values['robot']?.toString().trim() ?? '';
     final teamNumber = _extractTeamNumber();
-    if (station.isNotEmpty) {
-      if (teamNumber > 0) {
-        final exactStationMatches = candidates
-            .where((m) => m.teamForStation(station) == teamNumber)
-            .toList(growable: false);
-        if (exactStationMatches.length == 1) {
-          return exactStationMatches.first;
-        }
-      }
 
-      final stationMatches = candidates
-          .where((m) => m.teamForStation(station) != null)
-          .toList(growable: false);
-      if (stationMatches.length == 1) {
-        return stationMatches.first;
-      }
+    final match = MatchIdResolver(_eventCtrl.matches)
+        .resolveWithTiebreak(typed, station: station, teamNumber: teamNumber);
+    if (match == null) {
+      debugPrint(
+        'ScoutingTab: could not uniquely resolve schedule match for number '
+        '"$typed" using station "$station" and team $teamNumber. '
+        'Verify the match number, station, and team entry.',
+      );
     }
-
-    if (teamNumber > 0) {
-      final teamMatches = candidates
-          .where((m) => m.allTeams.contains(teamNumber))
-          .toList(growable: false);
-      if (teamMatches.length == 1) {
-        return teamMatches.first;
-      }
-    }
-
-    debugPrint(
-      'ScoutingTab: could not uniquely resolve schedule match for number '
-      '"$typed" using station "$station" and team $teamNumber. '
-      'Verify the match number, station, and team entry. '
-      'Candidates: ${candidates.map((m) => m.key).join(', ')}',
-    );
-    return null;
+    return match;
   }
 
   void _setFieldValue(String code, dynamic value) {
@@ -225,6 +266,12 @@ class _ScoutingTabState extends State<ScoutingTab> {
       if (controller != null && controller.text != (value?.toString() ?? '')) {
         controller.text = value?.toString() ?? '';
       }
+      final changesStation =
+          code == 'robot' ||
+          _config.allFields.any(
+            (f) => f.code == code && f.type == ScoutFieldType.tbaTeamAndRobot,
+          );
+      if (changesStation) _reanchorForStationChange();
       if (code == 'robot' || code == 'matchNumber') {
         final team = _lookupTeamFromSchedule();
         if (team != null) {
@@ -234,6 +281,12 @@ class _ScoutingTabState extends State<ScoutingTab> {
         _syncTbaTeamFields();
       }
     });
+  }
+
+  int _incrementedMatchNumber(String code) {
+    final current = (num.tryParse(_values[code]?.toString() ?? '') ?? 0)
+        .toInt();
+    return current + 1;
   }
 
   void _applyReset() {
@@ -254,6 +307,21 @@ class _ScoutingTabState extends State<ScoutingTab> {
         if (field.type == ScoutFieldType.tbaTeamAndRobot &&
             field.formResetBehavior == ResetBehavior.increment) {
           _values[field.code] = field.effectiveDefault;
+          continue;
+        }
+
+        if (field.type == ScoutFieldType.tbaMatchNumber) {
+          final scheduled = _scheduleAnchoredMatchNumber(
+            ScoutingController.stationOf(_values),
+          );
+          if (scheduled != null) {
+            _values[field.code] = scheduled;
+            _writeAnchoredMatchNumber(scheduled);
+          } else {
+            final next = _incrementedMatchNumber(field.code);
+            _values[field.code] = next;
+            _textControllers[field.code]?.text = next.toString();
+          }
           continue;
         }
         switch (field.formResetBehavior) {
@@ -319,6 +387,15 @@ class _ScoutingTabState extends State<ScoutingTab> {
     );
 
     final tbaMatchKey = _lookupTbaMatchKey();
+    final resolvedMatchKey = tbaMatchKey ?? existing?.tbaMatchKey;
+    final typedMatchNumber = _values['matchNumber']?.toString().trim() ?? '';
+
+    if (resolvedMatchKey == null && typedMatchNumber.isEmpty) {
+      setState(() {
+        _statusMessage = 'Enter the match number before saving.';
+      });
+      return;
+    }
 
     final stationAlliances = _values.values
         .map(allianceFromStationValue)
@@ -335,12 +412,12 @@ class _ScoutingTabState extends State<ScoutingTab> {
                   matchId: session.id,
                   teamNumber: teamNumber,
                   alliance: scoutedAlliance,
-                  tbaMatchKey: tbaMatchKey,
+                  tbaMatchKey: resolvedMatchKey,
                 ))
             .copyWith(
               fieldValues: Map<String, dynamic>.from(_values),
               alliance: scoutedAlliance,
-              tbaMatchKey: tbaMatchKey ?? existing?.tbaMatchKey,
+              tbaMatchKey: resolvedMatchKey,
               strokesByPhase: _drawingController.isEmpty
                   ? null
                   : Map<String, dynamic>.from(_drawingController.toJson()),
@@ -365,10 +442,14 @@ class _ScoutingTabState extends State<ScoutingTab> {
       widget.scoutingController.clearLastError();
       return;
     }
+
+    final pendingNote = resolvedMatchKey == null
+        ? ' Its match will be linked once the event schedule loads.'
+        : '';
     setState(() {
       _statusMessage = syncEnabled
-          ? 'Entry$teamLabel saved and syncing to the team database. Tap "New match" to scout another team.'
-          : 'Entry$teamLabel saved locally. Sign in via the account icon to auto-submit to the team database.';
+          ? 'Entry$teamLabel saved and syncing to the team database.$pendingNote Tap "New match" to scout another team.'
+          : 'Entry$teamLabel saved locally.$pendingNote Sign in via the account icon to auto-submit to the team database.';
     });
 
     _applyReset();
@@ -380,6 +461,7 @@ class _ScoutingTabState extends State<ScoutingTab> {
         builder: (_) => ScoutQrScanScreen(
           controller: widget.scoutingController,
           config: _config,
+          eventController: widget.eventController,
         ),
       ),
     );
@@ -461,6 +543,101 @@ class _ScoutingTabState extends State<ScoutingTab> {
     }
     return 'Scouting at $eventLabel. This entry links to ${match.key} '
         'for accuracy checks.';
+  }
+
+  Widget _buildPitDockedBar(BuildContext context) {
+    final bottomInset = GlassChrome.bottomInsetOf(context);
+    final pitScouting = widget.pitScoutingController;
+    final pitConfig = widget.pitScoutConfigController;
+    if (pitScouting == null || pitConfig == null) {
+      return SizedBox(height: bottomInset);
+    }
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        for (final code in const ['pTnumber', 'teamNumber', 'team', 'teamNum'])
+          _textControllers[code],
+      ]),
+      builder: (context, _) =>
+          _pitDockedBarContent(context, pitScouting, pitConfig, bottomInset),
+    );
+  }
+
+  Widget _pitDockedBarContent(
+    BuildContext context,
+    PitScoutingController pitScouting,
+    PitScoutConfigController pitConfig,
+    double bottomInset,
+  ) {
+    final teamNumber = _extractTeamNumber();
+    if (teamNumber <= 0) return SizedBox(height: bottomInset);
+    final teamPitEntries = pitScouting.entries
+        .where((e) => e.teamNumber == teamNumber)
+        .toList(growable: false);
+    if (teamPitEntries.isEmpty) return SizedBox(height: bottomInset);
+    final pitEntry = teamPitEntries.reduce(
+      (a, b) => b.updatedAt.isAfter(a.updatedAt) ? b : a,
+    );
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: StrategyPalette.surfaceOf(context),
+      child: InkWell(
+        onTap: () => _showPitLookupSheet(pitEntry, pitScouting, pitConfig),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
+          ),
+          padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + bottomInset),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline_rounded, color: colorScheme.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Pit report -- Team $teamNumber',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.primary,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showPitLookupSheet(
+    PitScoutEntry pitEntry,
+    PitScoutingController pitScouting,
+    PitScoutConfigController pitConfig,
+  ) {
+    return showGlassModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: 16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: SingleChildScrollView(
+          child: PitEntryCard(
+            entry: pitEntry,
+            controller: pitScouting,
+            config: pitConfig.config,
+            initiallyExpanded: true,
+          ),
+        ),
+      ),
+    );
   }
 
   String get _currentMatchDisplay {
@@ -552,251 +729,267 @@ class _ScoutingTabState extends State<ScoutingTab> {
   Widget build(BuildContext context) {
     return SaveShortcut(
       onSave: _saveEntry,
-      child: AnimatedBuilder(
-        animation: Listenable.merge(<Listenable>[
-          widget.strategyController,
-          widget.scoutingController,
-          widget.configController,
-          widget.eventController,
-        ]),
-        builder: (context, _) {
-          final session = widget.strategyController.session;
-          final entries = widget.scoutingController.entriesForMatch(session.id);
+      child: Column(
+        children: [
+          Expanded(
+            child: AnimatedBuilder(
+              animation: Listenable.merge([
+                widget.strategyController,
+                widget.scoutingController,
+                widget.configController,
+                widget.eventController,
+                widget.pitScoutingController,
+                widget.pitScoutConfigController,
+              ]),
+              builder: (context, _) {
+                final session = widget.strategyController.session;
+                final entries = widget.scoutingController.entriesForMatch(
+                  session.id,
+                );
 
-          final pendingAlerts = widget.scoutingController.pendingAlerts;
+                final pendingAlerts = widget.scoutingController.pendingAlerts;
 
-          return ListView(
-            padding:
-                const EdgeInsets.all(16) +
-                EdgeInsets.only(bottom: GlassChrome.bottomInsetOf(context)),
-            children: [
-              if (pendingAlerts.isNotEmpty)
-                _AccuracyAlertBanner(
-                  alerts: pendingAlerts,
-                  onDismissAll: () async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    var failures = 0;
-                    for (final alert in pendingAlerts) {
-                      try {
-                        await widget.scoutingController.acknowledgeAlert(
-                          alert.entryId,
-                        );
-                      } catch (_) {
-                        failures++;
-                      }
-                      if (!mounted) return;
-                    }
-                    if (failures > 0) {
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Could not dismiss $failures alert'
-                            '${failures == 1 ? '' : 's'}. They will come back '
-                            'until the acknowledgment reaches the database.',
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                ),
-              Row(
-                children: [
-                  Expanded(
-                    child: _SyncStatusPill(
-                      status: widget.scoutingController.syncStatus,
-                      failedWrites: widget.scoutingController.failedWrites,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: _scanQr,
-                    icon: const Icon(Icons.qr_code_scanner_rounded),
-                    label: const Text('Scan QR'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (widget.scoutingController.syncStatus.state ==
-                      ScoutingSyncState.signedOut ||
-                  widget.scoutingController.syncStatus.state ==
-                      ScoutingSyncState.noAccess)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Card(
-                    color: StrategyPalette.surfaceOf(context),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.cloud_off_rounded,
-                            size: 16,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              widget.scoutingController.syncStatus.state ==
-                                      ScoutingSyncState.noAccess
-                                  ? 'Auto-submit is off. Your account has no team access yet; ask an admin to approve it.'
-                                  : 'Auto-submit is off. Tap the account icon at the top to sign in and send entries directly to the team database.',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Card(
-                  color: StrategyPalette.surfaceOf(context),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: NoticeRow(
-                      icon: _eventCtrl.hasEvent
-                          ? Icons.event_available_rounded
-                          : Icons.event_busy_rounded,
-                      message: _eventLinkMessage(),
-                      messageStyle: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                          ),
-                      action: TextButton(
-                        onPressed: _selectEvent,
-                        child: Text(
-                          _eventCtrl.hasEvent ? 'Change' : 'Select event',
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline_rounded, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _currentMatchDisplay,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ..._config.sections.map(
-                (section) => ScoutFormSection(
-                  section: section,
-                  keyPrefix: 'scout-field',
-                  values: _values,
-                  textControllers: _textControllers,
-                  onFieldChanged: _setFieldValue,
-                  actionTrackerResetTokens: _actionTrackerResetTokens,
-                  schedule: ScoutSchedule.fromMatches(_eventCtrl.matches),
-                ),
-              ),
-              if (_config.reportDrawing) ...[
-                const SizedBox(height: 16),
-                AnimatedBuilder(
-                  animation: _drawingController,
-                  builder: (context, _) => _buildDrawingSection(context),
-                ),
-              ],
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _saveEntry,
-                      icon: const Icon(Icons.save_rounded),
-                      label: const Text('Save entry'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: _applyReset,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('New match'),
-                  ),
-                ],
-              ),
-              if (_statusMessage != null) ...[
-                const SizedBox(height: 12),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(_statusMessage!),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
+                return ListView(
                   padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Saved this match',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      if (entries.isEmpty)
-                        const Text('No entries saved yet for this match.')
-                      else
-                        ...entries.map(
-                          (entry) => ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              entry.teamNumber > 0
-                                  ? 'Team ${entry.teamNumber}'
-                                  : 'Entry',
-                            ),
-                            subtitle: Text(
-                              '${entry.fieldValues.length} fields recorded',
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.qr_code_2_rounded),
-                                  tooltip: 'Show QR',
-                                  onPressed: () => _showQr(entry),
+                  children: [
+                    if (pendingAlerts.isNotEmpty)
+                      _AccuracyAlertBanner(
+                        alerts: pendingAlerts,
+                        onDismissAll: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          var failures = 0;
+                          for (final alert in pendingAlerts) {
+                            try {
+                              await widget.scoutingController.acknowledgeAlert(
+                                alert.entryId,
+                              );
+                            } catch (_) {
+                              failures++;
+                            }
+                            if (!mounted) return;
+                          }
+                          if (failures > 0) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Could not dismiss $failures alert'
+                                  '${failures == 1 ? '' : 's'}. They will come back '
+                                  'until the acknowledgment reaches the database.',
                                 ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete_outline_rounded,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SyncStatusPill(
+                            status: widget.scoutingController.syncStatus,
+                            failedWrites:
+                                widget.scoutingController.failedWrites,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        OutlinedButton.icon(
+                          onPressed: _scanQr,
+                          icon: const Icon(Icons.qr_code_scanner_rounded),
+                          label: const Text('Scan QR'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (widget.scoutingController.syncStatus.state ==
+                            ScoutingSyncState.signedOut ||
+                        widget.scoutingController.syncStatus.state ==
+                            ScoutingSyncState.noAccess)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Card(
+                          color: StrategyPalette.surfaceOf(context),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.cloud_off_rounded,
+                                  size: 16,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    widget
+                                                .scoutingController
+                                                .syncStatus
+                                                .state ==
+                                            ScoutingSyncState.noAccess
+                                        ? 'Auto-submit is off. Your account has no team access yet; ask an admin to approve it.'
+                                        : 'Auto-submit is off. Tap the account icon at the top to sign in and send entries directly to the team database.',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
                                   ),
-                                  tooltip: 'Delete entry',
-                                  onPressed: () => _confirmDeleteEntry(entry),
                                 ),
                               ],
                             ),
                           ),
                         ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Card(
+                        color: StrategyPalette.surfaceOf(context),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: NoticeRow(
+                            icon: _eventCtrl.hasEvent
+                                ? Icons.event_available_rounded
+                                : Icons.event_busy_rounded,
+                            message: _eventLinkMessage(),
+                            messageStyle: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                            action: TextButton(
+                              onPressed: _selectEvent,
+                              child: Text(
+                                _eventCtrl.hasEvent ? 'Change' : 'Select event',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline_rounded, size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _currentMatchDisplay,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ..._config.sections.map(
+                      (section) => ScoutFormSection(
+                        section: section,
+                        keyPrefix: 'scout-field',
+                        values: _values,
+                        textControllers: _textControllers,
+                        onFieldChanged: _setFieldValue,
+                        actionTrackerResetTokens: _actionTrackerResetTokens,
+                        schedule: ScoutSchedule.fromMatches(_eventCtrl.matches),
+                      ),
+                    ),
+                    if (_config.reportDrawing) ...[
+                      const SizedBox(height: 16),
+                      AnimatedBuilder(
+                        animation: _drawingController,
+                        builder: (context, _) => _buildDrawingSection(context),
+                      ),
                     ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _saveEntry,
+                            icon: const Icon(Icons.save_rounded),
+                            label: const Text('Save entry'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        OutlinedButton.icon(
+                          onPressed: _applyReset,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('New match'),
+                        ),
+                      ],
+                    ),
+                    if (_statusMessage != null) ...[
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(_statusMessage!),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Saved this match',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            if (entries.isEmpty)
+                              const Text('No entries saved yet for this match.')
+                            else
+                              ...entries.map(
+                                (entry) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    entry.teamNumber > 0
+                                        ? 'Team ${entry.teamNumber}'
+                                        : 'Entry',
+                                  ),
+                                  subtitle: Text(
+                                    '${entry.fieldValues.length} fields recorded',
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.qr_code_2_rounded,
+                                        ),
+                                        tooltip: 'Show QR',
+                                        onPressed: () => _showQr(entry),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.delete_outline_rounded,
+                                        ),
+                                        tooltip: 'Delete entry',
+                                        onPressed: () =>
+                                            _confirmDeleteEntry(entry),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          _buildPitDockedBar(context),
+        ],
       ),
     );
   }

@@ -98,4 +98,33 @@ void main() {
   test('an empty schedule resolves nothing', () {
     expect(MatchIdResolver(const <StatboticsMatch>[]).resolve('12'), isNull);
   });
+
+  test('a bare number spanning levels, with a station tie and a team in '
+      'neither candidate, resolves to nothing via resolveWithTiebreak', () {
+    final resolver = MatchIdResolver(<StatboticsMatch>[
+      StatboticsMatch(
+        key: '2026cc_qm2',
+        event: '2026cc',
+        matchNumber: 2,
+        compLevel: 'qm',
+        redTeams: const <int>[111, 222, 333],
+        blueTeams: const <int>[444, 555, 666],
+      ),
+      StatboticsMatch(
+        key: '2026cc_sf2m1',
+        event: '2026cc',
+        matchNumber: 2,
+        compLevel: 'sf',
+        redTeams: const <int>[777, 888, 999],
+        blueTeams: const <int>[1010, 1111, 1212],
+      ),
+    ]);
+
+    expect(resolver.candidates('2'), hasLength(2));
+
+    expect(
+      resolver.resolveWithTiebreak('2', station: 'R1', teamNumber: 9023),
+      isNull,
+    );
+  });
 }

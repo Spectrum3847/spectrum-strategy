@@ -52,6 +52,37 @@ class MatchIdResolver {
     return found.length == 1 ? found.first : null;
   }
 
+  StatboticsMatch? resolveWithTiebreak(
+    String matchId, {
+    String station = '',
+    int teamNumber = 0,
+  }) {
+    final found = candidates(matchId);
+    if (found.isEmpty) return null;
+    if (found.length == 1) return found.first;
+
+    if (station.isNotEmpty) {
+      if (teamNumber > 0) {
+        final exactStationMatches = found
+            .where((m) => m.teamForStation(station) == teamNumber)
+            .toList(growable: false);
+        if (exactStationMatches.length == 1) return exactStationMatches.first;
+      }
+      final stationMatches = found
+          .where((m) => m.teamForStation(station) != null)
+          .toList(growable: false);
+      if (stationMatches.length == 1) return stationMatches.first;
+    }
+
+    if (teamNumber > 0) {
+      final teamMatches = found
+          .where((m) => m.allTeams.contains(teamNumber))
+          .toList(growable: false);
+      if (teamMatches.length == 1) return teamMatches.first;
+    }
+    return null;
+  }
+
   List<StatboticsMatch> candidates(String matchId) {
     final text = matchId.trim().toLowerCase();
     if (text.isEmpty) return const <StatboticsMatch>[];

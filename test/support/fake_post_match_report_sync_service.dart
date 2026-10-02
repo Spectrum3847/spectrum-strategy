@@ -27,6 +27,10 @@ class FakePostMatchReportSyncService implements PostMatchReportSyncService {
 
   Object? failNextPush;
 
+  bool simulateOutage = false;
+
+  bool simulateRejection = false;
+
   bool disposed = false;
   int initializeCalls = 0;
 
@@ -59,7 +63,28 @@ class FakePostMatchReportSyncService implements PostMatchReportSyncService {
       failNextPush = null;
       throw failure;
     }
+    if (simulateRejection) {
+      emitStatus(
+        const PostMatchReportSyncStatus(
+          state: PostMatchReportSyncState.rejected,
+          error: 'permission-denied: push rejected',
+        ),
+      );
+      return;
+    }
+    if (simulateOutage) {
+      emitStatus(
+        const PostMatchReportSyncStatus(
+          state: PostMatchReportSyncState.offline,
+          error: 'push failed',
+        ),
+      );
+      return;
+    }
     pushes.add(report);
+    emitStatus(
+      const PostMatchReportSyncStatus(state: PostMatchReportSyncState.synced),
+    );
   }
 
   @override
