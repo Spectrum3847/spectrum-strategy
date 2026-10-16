@@ -135,11 +135,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          NOTES="Latest nightly builds of Spectrum Strategy. The APK is debug-signed for sideloading; the IPA installs through AltStore or SideStore."
+
           gh release create nightly --repo "$GITHUB_REPOSITORY" \
-            --title "Nightly build" --notes "$NOTES" --prerelease 2>/dev/null || true
-          gh release edit nightly --repo "$GITHUB_REPOSITORY" \
-            --title "Nightly build" --notes "$NOTES"
+            --title "Nightly build" --notes-file source/oss/.github/release-notes/nightly.md \
+            --prerelease 2>/dev/null || true
 
   context:
 

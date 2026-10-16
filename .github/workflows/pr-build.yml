@@ -120,12 +120,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          NOTES="Test builds of open pull requests, one set of files per PR, rebuilt on request and removed when the PR is merged or closed. The IPAs install through the PR builds source in AltStore, SideStore or LiveContainer."
+
+          NOTES="Test builds of open pull requests."
           gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --target master --title "PR test builds" --notes "$NOTES" \
             --prerelease 2>/dev/null || true
-          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-            --title "PR test builds" --notes "$NOTES"
 
   ios:
     needs: start
