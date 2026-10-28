@@ -200,7 +200,7 @@ jobs:
 
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: 24
+          node-version: 26
 
       - name: Deploy source JSON and icon to Firebase Hosting
         env:
