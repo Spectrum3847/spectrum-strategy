@@ -1,0 +1,443 @@
+import 'package:flutter/material.dart';
+
+import 'strategy_palette.dart';
+
+const _buttonShape = RoundedRectangleBorder(
+  borderRadius: BorderRadius.all(Radius.circular(StrategyPalette.radiusSm)),
+);
+
+const _minTarget = Size(64, 48);
+
+final _filledButtonTheme = FilledButtonThemeData(
+  style: FilledButton.styleFrom(shape: _buttonShape, minimumSize: _minTarget),
+);
+final _outlinedButtonTheme = OutlinedButtonThemeData(
+  style: OutlinedButton.styleFrom(shape: _buttonShape, minimumSize: _minTarget),
+);
+final _textButtonTheme = TextButtonThemeData(
+  style: TextButton.styleFrom(shape: _buttonShape, minimumSize: _minTarget),
+);
+const _segmentedButtonTheme = SegmentedButtonThemeData(
+  style: ButtonStyle(shape: WidgetStatePropertyAll(_buttonShape)),
+);
+
+const _navigationIndicatorShape = RoundedRectangleBorder(
+  borderRadius: BorderRadius.all(Radius.circular(StrategyPalette.radiusSm)),
+);
+
+NavigationBarThemeData _navigationBarTheme({
+  required TextTheme textTheme,
+  required Color background,
+  required Color indicator,
+  required Color selected,
+  required Color unselected,
+}) {
+  return NavigationBarThemeData(
+    backgroundColor: background,
+    elevation: 0,
+    surfaceTintColor: Colors.transparent,
+    shadowColor: Colors.transparent,
+    indicatorColor: indicator,
+    indicatorShape: _navigationIndicatorShape,
+    iconTheme: WidgetStateProperty.resolveWith((states) {
+      final isSelected = states.contains(WidgetState.selected);
+      final color = isSelected ? selected : unselected;
+      return IconThemeData(size: 24, color: color);
+    }),
+    labelTextStyle: WidgetStateProperty.resolveWith((states) {
+      final isSelected = states.contains(WidgetState.selected);
+      final color = isSelected ? selected : unselected;
+      return textTheme.labelMedium?.copyWith(color: color);
+    }),
+  );
+}
+
+NavigationRailThemeData _navigationRailTheme({
+  required TextTheme textTheme,
+  required Color background,
+  required Color indicator,
+  required Color selected,
+  required Color unselected,
+}) {
+  return NavigationRailThemeData(
+    backgroundColor: background,
+    elevation: 0,
+    indicatorColor: indicator,
+    indicatorShape: _navigationIndicatorShape,
+    selectedIconTheme: IconThemeData(size: 24, color: selected),
+    unselectedIconTheme: IconThemeData(size: 24, color: unselected),
+    selectedLabelTextStyle: textTheme.labelMedium?.copyWith(color: selected),
+    unselectedLabelTextStyle: textTheme.labelMedium?.copyWith(
+      color: unselected,
+    ),
+  );
+}
+
+ThemeData buildDarkAppTheme() {
+  final baseTheme = ThemeData.dark(useMaterial3: true);
+  const darkTextColor = StrategyPalette.darkText;
+
+  final textTheme = baseTheme.textTheme
+      .apply(fontFamily: 'Overpass')
+      .copyWith(
+        titleLarge: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 19,
+          fontWeight: FontWeight.w700,
+          color: darkTextColor,
+        ),
+        titleMedium: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 19,
+          fontWeight: FontWeight.w700,
+          color: darkTextColor,
+        ),
+        titleSmall: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: darkTextColor,
+        ),
+        bodyLarge: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          color: darkTextColor,
+        ),
+        bodyMedium: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          color: darkTextColor,
+        ),
+        bodySmall: TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 13,
+          fontWeight: FontWeight.w400,
+          color: StrategyPalette.darkTextMuted,
+        ),
+        labelLarge: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: darkTextColor,
+        ),
+        labelMedium: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: darkTextColor,
+        ),
+        labelSmall: TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: StrategyPalette.darkTextMuted,
+        ),
+      );
+
+  const darkBackground = StrategyPalette.darkBackground;
+  const darkSurface = StrategyPalette.darkSurface;
+  const darkSurfaceStrong = StrategyPalette.darkSurfaceStrong;
+
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: const ColorScheme.dark(
+      primary: StrategyPalette.darkPrimary,
+      onPrimary: StrategyPalette.darkOnPrimary,
+      secondary: StrategyPalette.darkSecondary,
+      onSecondary: StrategyPalette.darkText,
+      surface: darkBackground,
+      onSurface: darkTextColor,
+      onSurfaceVariant: StrategyPalette.darkTextMuted,
+      error: StrategyPalette.darkError,
+      onError: StrategyPalette.darkOnError,
+      outline: StrategyPalette.darkOutline,
+    ),
+    scaffoldBackgroundColor: darkBackground,
+    textTheme: textTheme,
+    fontFamily: 'Overpass',
+    appBarTheme: const AppBarTheme(
+      backgroundColor: darkBackground,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: false,
+    ),
+    cardTheme: const CardThemeData(
+      color: darkSurface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+      ),
+      margin: EdgeInsets.zero,
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.transparent,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+        borderSide: BorderSide(color: darkSurfaceStrong),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+        borderSide: BorderSide(color: darkSurfaceStrong),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+        borderSide: BorderSide(color: StrategyPalette.darkPrimary, width: 1.5),
+      ),
+      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    ),
+    dialogTheme: const DialogThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+      ),
+      surfaceTintColor: Colors.transparent,
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+      ),
+      backgroundColor: darkBackground,
+      surfaceTintColor: Colors.transparent,
+    ),
+    navigationBarTheme: _navigationBarTheme(
+      textTheme: textTheme,
+      background: darkSurface,
+      indicator: darkSurfaceStrong,
+      selected: StrategyPalette.darkPrimary,
+      unselected: StrategyPalette.darkTextMuted,
+    ),
+    navigationRailTheme: _navigationRailTheme(
+      textTheme: textTheme,
+      background: darkSurface,
+      indicator: darkSurfaceStrong,
+      selected: StrategyPalette.darkPrimary,
+      unselected: StrategyPalette.darkTextMuted,
+    ),
+    chipTheme: ChipThemeData(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+      ),
+      backgroundColor: darkSurfaceStrong,
+      selectedColor: StrategyPalette.darkPrimary,
+
+      labelStyle: textTheme.labelLarge?.copyWith(
+        color: WidgetStateColor.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? StrategyPalette.darkOnPrimary
+              : darkTextColor,
+        ),
+      ),
+      checkmarkColor: StrategyPalette.darkOnPrimary,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith<Color?>((states) {
+        if (states.contains(WidgetState.selected)) {
+          return StrategyPalette.darkPrimary;
+        }
+        return StrategyPalette.darkSwitchThumbOff;
+      }),
+      trackColor: WidgetStateProperty.resolveWith<Color?>((states) {
+        if (states.contains(WidgetState.selected)) {
+          return darkSurfaceStrong;
+        }
+        return StrategyPalette.darkSurface;
+      }),
+    ),
+    filledButtonTheme: _filledButtonTheme,
+    outlinedButtonTheme: _outlinedButtonTheme,
+    textButtonTheme: _textButtonTheme,
+    segmentedButtonTheme: _segmentedButtonTheme,
+  );
+}
+
+ThemeData buildAppTheme() {
+  final baseTheme = ThemeData.light(useMaterial3: true);
+
+  final textTheme = baseTheme.textTheme
+      .apply(fontFamily: 'Overpass')
+      .copyWith(
+        titleLarge: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 19,
+          fontWeight: FontWeight.w700,
+          color: StrategyPalette.textPrimary,
+        ),
+        titleMedium: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 19,
+          fontWeight: FontWeight.w700,
+          color: StrategyPalette.textPrimary,
+        ),
+        titleSmall: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: StrategyPalette.textPrimary,
+        ),
+        bodyLarge: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          color: StrategyPalette.textPrimary,
+        ),
+        bodyMedium: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          color: StrategyPalette.textPrimary,
+        ),
+        bodySmall: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 13,
+          fontWeight: FontWeight.w400,
+          color: StrategyPalette.textMuted,
+        ),
+        labelLarge: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: StrategyPalette.textPrimary,
+        ),
+        labelMedium: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: StrategyPalette.textPrimary,
+        ),
+        labelSmall: const TextStyle(
+          fontFamily: 'Overpass',
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: StrategyPalette.textMuted,
+        ),
+      );
+
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: const ColorScheme.light(
+      primary: StrategyPalette.primary,
+      onPrimary: Colors.white,
+      secondary: StrategyPalette.secondary,
+      onSecondary: StrategyPalette.primary,
+      surface: StrategyPalette.background,
+      onSurface: StrategyPalette.textPrimary,
+      onSurfaceVariant: StrategyPalette.textMuted,
+      error: StrategyPalette.error,
+      onError: StrategyPalette.onError,
+      outline: StrategyPalette.border,
+    ),
+    scaffoldBackgroundColor: StrategyPalette.background,
+    textTheme: textTheme,
+    fontFamily: 'Overpass',
+    appBarTheme: const AppBarTheme(
+      backgroundColor: StrategyPalette.background,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: false,
+    ),
+    cardTheme: const CardThemeData(
+      color: StrategyPalette.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+      ),
+      margin: EdgeInsets.zero,
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.transparent,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+        borderSide: BorderSide(color: StrategyPalette.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+        borderSide: BorderSide(color: StrategyPalette.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+        borderSide: BorderSide(color: StrategyPalette.primary, width: 1.5),
+      ),
+      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    ),
+    dialogTheme: const DialogThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+      ),
+      surfaceTintColor: Colors.transparent,
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+      ),
+      backgroundColor: StrategyPalette.background,
+      surfaceTintColor: Colors.transparent,
+    ),
+    navigationBarTheme: _navigationBarTheme(
+      textTheme: textTheme,
+      background: StrategyPalette.surface,
+      indicator: StrategyPalette.surfaceStrong,
+      selected: StrategyPalette.primary,
+      unselected: StrategyPalette.textMuted,
+    ),
+    navigationRailTheme: _navigationRailTheme(
+      textTheme: textTheme,
+      background: StrategyPalette.surface,
+      indicator: StrategyPalette.surfaceStrong,
+      selected: StrategyPalette.primary,
+      unselected: StrategyPalette.textMuted,
+    ),
+    chipTheme: ChipThemeData(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(StrategyPalette.radiusSm),
+        ),
+      ),
+      backgroundColor: StrategyPalette.secondary,
+      selectedColor: StrategyPalette.primary,
+
+      labelStyle: textTheme.labelLarge?.copyWith(
+        color: WidgetStateColor.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.white
+              : StrategyPalette.textPrimary,
+        ),
+      ),
+      checkmarkColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+    ),
+    filledButtonTheme: _filledButtonTheme,
+    outlinedButtonTheme: _outlinedButtonTheme,
+    textButtonTheme: _textButtonTheme,
+    segmentedButtonTheme: _segmentedButtonTheme,
+  );
+}

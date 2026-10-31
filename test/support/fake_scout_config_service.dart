@@ -1,0 +1,18 @@
+import 'package:spectrumstrategy/src/scouting/models/scout_config.dart';
+import 'package:spectrumstrategy/src/scouting/services/scout_config_service.dart';
+
+class FakeScoutConfigService extends ScoutConfigService {
+  FakeScoutConfigService({ScoutConfig? stored}) : _config = stored;
+
+  ScoutConfig? _config;
+
+  ScoutConfig? get stored => _config;
+
+  @override
+  Future<ScoutConfig?> loadStored() async => _config;
+
+  @override
+  Future<void> save(ScoutConfig config) async {
+    _config = config;
+  }
+}

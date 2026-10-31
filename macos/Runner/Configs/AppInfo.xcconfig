@@ -1,0 +1,5 @@
+PRODUCT_NAME = spectrumstrategy
+
+PRODUCT_BUNDLE_IDENTIFIER = org.spectrum3847.spectrumstrategy
+
+PRODUCT_COPYRIGHT = Copyright © 2026 Spectrum 3847. All rights reserved.
