@@ -277,10 +277,15 @@ jobs:
         if: matrix.platform == 'linux'
         timeout-minutes: 5
         run: |
-          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
-          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y \
-            clang cmake ninja-build pkg-config libgtk-3-dev libx11-dev libxi-dev liblzma-dev \
-            build-essential
+          apt=(apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30)
+          pkgs=(clang cmake ninja-build pkg-config libgtk-3-dev libx11-dev libxi-dev liblzma-dev build-essential)
+          sudo "${apt[@]}" update
+
+          for i in 1 2 3; do
+            sudo timeout 80 "${apt[@]}" install -y --download-only "${pkgs[@]}" && break
+            [ "$i" -lt 3 ] || exit 1
+          done
+          sudo "${apt[@]}" install -y "${pkgs[@]}"
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
