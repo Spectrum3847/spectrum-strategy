@@ -405,7 +405,9 @@ jobs:
           cp web/icons/Icon-512.png "$appdir/spectrumstrategy.png"
           curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
           chmod +x appimagetool
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$appdir" "$ARTIFACT"
+
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o runtime-x86_64 "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64"
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run --runtime-file runtime-x86_64 "$appdir" "$ARTIFACT"
 
       - name: Publish to the PR builds release
         shell: bash
