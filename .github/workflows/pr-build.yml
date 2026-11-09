@@ -403,7 +403,7 @@ jobs:
           Categories=Utility;
           EOF
           cp web/icons/Icon-512.png "$appdir/spectrumstrategy.png"
-          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
           chmod +x appimagetool
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$appdir" "$ARTIFACT"
 
