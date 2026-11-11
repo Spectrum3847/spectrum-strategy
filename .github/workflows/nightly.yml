@@ -510,6 +510,15 @@ jobs:
             -o /dev/null -w '%{http_code}' "$SITE_URL/flutter_service_worker.js")"
           [ "$status" = "404" ]
 
+  relay:
+
+    needs: sync
+    permissions:
+      contents: write
+    uses: ./.github/workflows/relay.yml
+    secrets:
+      RELAY_SIGNING_KEY: ${{ secrets.RELAY_SIGNING_KEY }}
+
   cleanup-docs-artifact:
 
     needs: [sync, ios-build, android, desktop-build, staging-web]
