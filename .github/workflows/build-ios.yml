@@ -105,8 +105,7 @@ jobs:
             --build-number "${{ inputs.build_number }}" \
             --dart-define=GIT_COMMIT="${{ inputs.git_commit }}" \
             --dart-define=GIT_BRANCH="${{ inputs.git_branch }}" \
-            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
-            --dart-define=POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
 
       - name: Upload iOS obfuscation symbols
         uses: actions/upload-artifact@v7

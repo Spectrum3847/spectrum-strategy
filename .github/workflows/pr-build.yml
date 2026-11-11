@@ -185,8 +185,7 @@ jobs:
             --dart-define=GIT_COMMIT="${SHA:0:7}" \
             --dart-define=GIT_BRANCH="pr-$PR" \
             --dart-define=BUILD_DATE="$build_date" \
-            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
-            --dart-define=POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
 
       - name: Read real values from built Info.plist
         id: info
@@ -329,7 +328,6 @@ jobs:
               --dart-define=GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID}" \
               --dart-define=GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET}" \
               --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
-              --dart-define=POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }} \
               $glass_define
           }
           for attempt in 1 2 3; do
@@ -450,8 +448,7 @@ jobs:
             --dart-define=GIT_COMMIT="${SHA:0:7}" \
             --dart-define=GIT_BRANCH="pr-$PR" \
             --dart-define=BUILD_DATE="$build_date" \
-            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
-            --dart-define=POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
           python3 scripts/web/gen_sw.py build/web
 
       - name: Deploy to the preview Hosting site

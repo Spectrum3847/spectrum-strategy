@@ -130,8 +130,7 @@ jobs:
               --dart-define=BUILD_TIMESTAMP="$build_timestamp" \
               --dart-define=GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID}" \
               --dart-define=GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET}" \
-              --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
-              --dart-define=POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
+              --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
           }
           for attempt in 1 2 3; do
             if build; then exit 0; fi
