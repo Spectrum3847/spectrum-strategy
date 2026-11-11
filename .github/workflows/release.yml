@@ -257,8 +257,7 @@ jobs:
           flutter build web --release --wasm --no-web-resources-cdn --base-href / \
             --dart-define=GIT_COMMIT="$GIT_COMMIT" \
             --dart-define=GIT_BRANCH="$GIT_BRANCH" \
-            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
-            --dart-define=POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
           python3 scripts/web/gen_sw.py build/web
 
       - name: Deploy to the RC Hosting site

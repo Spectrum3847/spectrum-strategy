@@ -374,8 +374,7 @@ jobs:
             --dart-define=GIT_COMMIT="$SOURCE_SHA" \
             --dart-define=GIT_BRANCH="master" \
             --dart-define=BUILD_DATE="$build_date" \
-            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
-            --dart-define=POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
 
       - name: Publish to the rolling nightly release
 
@@ -465,8 +464,7 @@ jobs:
           build_date="$(date -u +%Y-%m-%d)"
           flutter build web --release --wasm --no-web-resources-cdn --base-href / \
             --dart-define=BUILD_DATE="$build_date" \
-            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy \
-            --dart-define=POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
+            --dart-define=SPECTRUM_APP_KEY=spectrumstrategy
           python3 scripts/web/gen_sw.py build/web
 
       - name: Deploy to the staging Hosting site
