@@ -1,0 +1,25 @@
+{
+
+  "name": "spectrumstrategy-crons",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-07-01",
+
+  "preview_urls": false,
+  "account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
+
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "spectrumstrategy-photos" }],
+
+  "durable_objects": { "bindings": [{ "name": "CHAT_HUB", "class_name": "ChatHub" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ChatHub"] }],
+  "vars": {
+    "FIREBASE_PROJECT": "frcspectrumstrategy",
+    "PLATFORM_PROJECT": "spectrumtasks-81c63",
+    "PIT_PROJECT": "spectrumpit",
+    "GITHUB_REPO": "Spectrum3847/SpectrumStrategy",
+
+    "VAPID_PUBLIC_KEY": "BOucdc9DnIIOu7Pwvw7JZzwT645RdQcl06b-a2wOTOZ6rp7m2wgo92BvR_zHoqtoYGYBxWyhqdzpYChfSwQyyso",
+
+    "ALLOWED_ORIGINS": "https://frcspectrumstrategy.web.app,https://frcspectrumstrategy.firebaseapp.com,https://frcspectrumstrategy-staging.web.app,https://frcspectrumstrategy-staging.firebaseapp.com,https://frcspectrumstrategy-nightly.web.app,https://frcspectrumstrategy-nightly.firebaseapp.com,https://frcspectrumstrategy-preview.web.app,https://frcspectrumstrategy-preview.firebaseapp.com,https://frcspectrumstrategy-stable.web.app,https://frcspectrumstrategy-app.web.app,https://frcspectrumstrategy-app.firebaseapp.com,http://localhost:5000"
+  },
+  "observability": { "enabled": true }
+}

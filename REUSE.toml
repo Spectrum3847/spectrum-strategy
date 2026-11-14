@@ -1,0 +1,9 @@
+version = 1
+SPDX-PackageName = "spectrum-strategy"
+SPDX-PackageSupplier = "Organization: Spectrum 3847"
+SPDX-PackageDownloadLocation = "https://github.com/Spectrum3847/spectrum-strategy"
+
+[[annotations]]
+path = "**"
+SPDX-FileCopyrightText = "The Spectrum Strategy Contributors"
+SPDX-License-Identifier = "AGPL-3.0-only"

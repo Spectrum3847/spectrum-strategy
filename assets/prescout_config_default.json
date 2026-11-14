@@ -1,0 +1,269 @@
+{
+  "title": "Pre-Scouting",
+  "page_title": "Match Film Review",
+  "delimiter": "\t",
+  "revision": 6,
+  "sections": [
+    {
+      "name": "Match",
+      "fields": [
+        {
+          "title": "Event Name",
+          "description": "The event the watched match is from.",
+          "type": "text",
+          "required": true,
+          "code": "watchedEvent",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        },
+        {
+          "title": "Match Type",
+          "description": "Qualification, playoff or final.",
+          "type": "select",
+          "required": true,
+          "code": "matchType",
+          "formResetBehavior": "reset",
+          "defaultValue": "qual",
+          "choices": {
+            "qual": "Qual",
+            "playoff": "Playoff",
+            "final": "Final"
+          }
+        },
+        {
+          "title": "Match Number",
+          "description": "The match number, or the playoff set number.",
+          "type": "text",
+          "required": true,
+          "code": "matchNumber",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        },
+        {
+          "title": "Video URL",
+          "description": "Link to the match film, if available.",
+          "type": "text",
+          "required": false,
+          "code": "videoUrl",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        }
+      ]
+    },
+    {
+      "name": "Auto",
+      "fields": [
+        {
+          "title": "Starting Position",
+          "description": "Where the robot started the auto.",
+          "type": "select",
+          "required": true,
+          "code": "startingPosition",
+          "formResetBehavior": "reset",
+          "defaultValue": "centerHub",
+          "choices": {
+            "centerHub": "Center Hub",
+            "depotDump": "Depot Bump",
+            "depotTrench": "Depot Trench",
+            "outpostBump": "Outpost Bump",
+            "outpostTrench": "Outpost Trench"
+          }
+        },
+        {
+          "title": "Auto: Fuel Scored",
+          "description": "How many fuel the robot scored in auto. Put 0 when none scored.",
+          "type": "counter",
+          "required": true,
+          "code": "autoFuelScored",
+          "formResetBehavior": "reset",
+          "defaultValue": 0,
+          "buttons": [
+            1,
+            5,
+            10
+          ]
+        },
+        {
+          "title": "Auto Climb (L1)",
+          "description": "Whether the robot climbed in the auto.",
+          "type": "select",
+          "required": true,
+          "code": "autoClimbL1",
+          "formResetBehavior": "reset",
+          "defaultValue": "na",
+          "choices": {
+            "na": "N/A",
+            "failed": "Failed",
+            "successful": "Successful"
+          }
+        },
+        {
+          "title": "Shot From",
+          "description": "Where the robot shot from in the auto.",
+          "type": "select",
+          "required": false,
+          "code": "autoShotFrom",
+          "formResetBehavior": "reset",
+          "defaultValue": "na",
+          "choices": {
+            "na": "N/A",
+            "centerHub": "Center Hub",
+            "depotDump": "Depot Bump",
+            "depotTrench": "Depot Trench",
+            "outpostBump": "Outpost Bump",
+            "outpostTrench": "Outpost Trench"
+          }
+        },
+        {
+          "title": "Auto Path",
+          "description": "Follow the auto path bullet points consecutively; repeat cycles with Nx (e.g. Depot trench, neutral zone 2x, depot trench 2x, 47x fuel scored).",
+          "type": "text",
+          "required": false,
+          "code": "autoPath",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        }
+      ]
+    },
+    {
+      "name": "Teleop",
+      "fields": [
+        {
+          "title": "Teleop: Fuel Scored",
+          "description": "Approximate fuel scored into the hub. Put 0 if they did not score.",
+          "type": "counter",
+          "required": true,
+          "code": "teleopFuelScored",
+          "formResetBehavior": "reset",
+          "defaultValue": 0,
+          "buttons": [
+            1,
+            5,
+            10
+          ]
+        },
+        {
+          "title": "Defense",
+          "description": "Did they play defense?",
+          "type": "boolean",
+          "required": false,
+          "code": "defense",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        },
+        {
+          "title": "Passer/Pusher",
+          "description": "Did they play as a passer?",
+          "type": "boolean",
+          "required": false,
+          "code": "passerPusher",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        },
+        {
+          "title": "Cycle Speed",
+          "description": "How fast the robot cycles.",
+          "type": "select",
+          "required": false,
+          "code": "cycleSpeed",
+          "formResetBehavior": "reset",
+          "defaultValue": "na",
+          "choices": {
+            "na": "N/A",
+            "slow": "Slow",
+            "average": "Average",
+            "fast": "Fast"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Endgame",
+      "fields": [
+        {
+          "title": "Endgame Climb",
+          "description": "The highest climb they completed, or a failed attempt.",
+          "type": "select",
+          "required": true,
+          "code": "endgameClimb",
+          "formResetBehavior": "reset",
+          "defaultValue": "none",
+          "choices": {
+            "none": "None",
+            "failed": "Failed",
+            "l1": "L1",
+            "l2": "L2",
+            "l3": "L3"
+          }
+        },
+        {
+          "title": "Climb Position",
+          "description": "What side they climbed on.",
+          "type": "select",
+          "required": false,
+          "code": "climbPosition",
+          "formResetBehavior": "reset",
+          "defaultValue": "na",
+          "choices": {
+            "na": "N/A",
+            "trench": "Trench",
+            "depot": "Depot",
+            "middle": "Middle"
+          }
+        },
+        {
+          "title": "Time To Climb (s)",
+          "description": "Seconds from starting the climb to being off the floor.",
+          "type": "number",
+          "required": false,
+          "code": "climbSeconds",
+          "formResetBehavior": "reset",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 60
+        }
+      ]
+    },
+    {
+      "name": "Issues and notes",
+      "fields": [
+        {
+          "title": "Disconnects",
+          "description": "Did the robot disconnect mid-match?",
+          "type": "boolean",
+          "required": false,
+          "code": "disconnects",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        },
+        {
+          "title": "Yellow Cards",
+          "description": "Did the robot receive a yellow card?",
+          "type": "boolean",
+          "required": false,
+          "code": "yellowCards",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        },
+        {
+          "title": "Red Cards",
+          "description": "Did the robot receive a red card?",
+          "type": "boolean",
+          "required": false,
+          "code": "redCards",
+          "formResetBehavior": "reset",
+          "defaultValue": false
+        },
+        {
+          "title": "Comments",
+          "description": "Defense target and effectiveness, fouls, disconnects, yellow/red cards, climb timing.",
+          "type": "text",
+          "required": false,
+          "code": "comments",
+          "formResetBehavior": "reset",
+          "defaultValue": ""
+        }
+      ]
+    }
+  ]
+}

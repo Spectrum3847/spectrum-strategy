@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spectrum AI relay</title>
+<style>
+:root {
+  --canvas: #f2ecf7; --surface: #eae1f1; --line: #c9bad8; --text: #2a1f33;
+  --muted: #645870; --accent: #3c0060; --on-accent: #fff; --bad: #c02b2b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #141117; --surface: #1e1b22; --line: #2a2630; --text: #f1ecf7;
+    --muted: #cac2d6; --accent: #cfbcff; --on-accent: #1b0033; --bad: #ff8a8a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--canvas); color: var(--text);
+  font: 15px/1.4 Overpass, system-ui, sans-serif;
+}
+main { max-width: 40rem; margin: 0 auto; padding: 16px; }
+h1 { font-size: 19px; margin: 8px 0 16px; }
+h2 { font-size: 15px; margin: 0 0 8px; letter-spacing: 0.02em; }
+section {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 4px; padding: 12px 16px; margin-bottom: 12px;
+}
+dl { margin: 0; display: grid; grid-template-columns: 9rem 1fr; gap: 6px 12px; }
+dt { color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; }
+.bad { color: var(--bad); }
+.muted { color: var(--muted); }
+button {
+  font: inherit; font-weight: 600; min-height: 44px; padding: 8px 16px;
+  border-radius: 4px; border: 1px solid var(--accent); cursor: pointer;
+  background: var(--accent); color: var(--on-accent);
+}
+button.plain { background: transparent; color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+label { display: block; margin-top: 8px; color: var(--muted); }
+.check { display: flex; align-items: center; gap: 8px; min-height: 44px; color: var(--text); }
+.check input { width: 22px; min-height: 22px; }
+summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+input {
+  font: inherit; width: 100%; min-height: 44px; padding: 8px;
+  border: 1px solid var(--line); border-radius: 4px;
+  background: var(--canvas); color: var(--text);
+}
+p { margin: 8px 0 0; }
+@media (max-width: 30rem) { dl { grid-template-columns: 1fr; } dt { margin-top: 6px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Spectrum AI relay</h1>
+
+  <section>
+    <h2>Status</h2>
+    <dl>
+      <dt>Relay</dt><dd id="relay">-</dd>
+      <dt>Signed in as</dt><dd id="who">-</dd>
+      <dt>Account id</dt><dd id="uid">-</dd>
+      <dt>Doing</dt><dd id="phase">-</dd>
+      <dt>llama-server</dt><dd id="llama">-</dd>
+      <dt>Model</dt><dd id="model">-</dd>
+      <dt>Last answer</dt><dd id="answer">-</dd>
+      <dt>Last error</dt><dd id="error">-</dd>
+      <dt>Private chat</dt><dd id="chat">-</dd>
+      <dt>Last chat error</dt><dd id="chatError">-</dd>
+    </dl>
+    <div class="row">
+      <button id="toggle" type="button">Turn off</button>
+    </div>
+    <p class="muted" id="toggleNote"></p>
+  </section>
+
+  <section>
+    <h2>Updates</h2>
+    <dl>
+      <dt>Build</dt><dd id="build">-</dd>
+      <dt>Last check</dt><dd id="updateLast">-</dd>
+    </dl>
+    <p class="muted">The relay checks every few hours for a newer signed build of the relay and installs it, then restarts. It never installs a file whose signature or checksum does not match, and never goes back to an older build. Updates need the relay to start at login.</p>
+    <label class="check"><input id="autoUpdate" type="checkbox"> Install updates automatically</label>
+    <div class="row">
+      <button id="updateNow" class="plain" type="button">Check now</button>
+    </div>
+    <p id="updateMsg" role="status"></p>
+  </section>
+
+  <section>
+    <h2>Sign in</h2>
+    <p class="muted">Sign in once with your team account. The relay answers requests as that member and keeps a refresh token on this device.</p>
+    <div class="row">
+      <button id="signin" type="button">Sign in with Google</button>
+      <button id="signout" class="plain" type="button">Sign out</button>
+    </div>
+    <p id="signMsg" role="status"></p>
+  </section>
+
+  <section>
+    <h2>Model</h2>
+    <p class="muted">A GGUF chat model. The relay downloads it on the next check and deletes the previous one.</p>
+    <form id="modelForm">
+      <label for="mName">Name</label>
+      <input id="mName" autocomplete="off">
+      <label for="mUrl">Download URL (https)</label>
+      <input id="mUrl" autocomplete="off" inputmode="url">
+      <label for="mSha">SHA-256 (optional, checked after download)</label>
+      <input id="mSha" autocomplete="off">
+      <div class="row">
+        <button type="submit">Use this model</button>
+        <button id="mDefault" class="plain" type="button">Use the default</button>
+      </div>
+    </form>
+    <p id="modelMsg" role="status"></p>
+  </section>
+
+  <section>
+    <h2>If your computer blocked the relay</h2>
+    <p class="muted">The relay is not signed with an Apple or Microsoft certificate, so each system asks once.</p>
+    <details>
+      <summary>macOS</summary>
+      <p>Right-click the relay file, choose Open, then press Open. Or open System Settings, go to Privacy &amp; Security, scroll down and press Open Anyway next to the relay.</p>
+    </details>
+    <details>
+      <summary>Windows</summary>
+      <p>When SmartScreen says it protected your PC, press More info, then Run anyway.</p>
+    </details>
+  </section>
+</main>
+
+<script>
+const RELAY = __RELAY_CONFIG__;
+const $ = (id) => document.getElementById(id);
+let status = null;
+
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.error) throw new Error(json.error || "HTTP " + res.status);
+  return json;
+}
+
+function ago(ms) {
+  const m = Math.floor((Date.now() - ms) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return m + " minutes ago";
+  const h = Math.floor(m / 60);
+  return h < 24 ? h + " hours ago" : Math.floor(h / 24) + " days ago";
+}
+
+function render(s) {
+  status = s;
+  $("relay").textContent = s.enabled ? "On" : "Off";
+  $("who").textContent = s.signedInAs || "Not signed in";
+  $("uid").textContent = s.signedInUid || "-";
+  $("phase").textContent = s.phase || "-";
+  $("llama").textContent = s.llamaRunning ? "Running" : "Stopped (starts when a request arrives)";
+  $("model").textContent = s.model.name;
+  $("answer").textContent = s.lastAnswer ? s.lastAnswer.text + ", " + ago(s.lastAnswer.atMs) : "None yet";
+  const err = $("error");
+  err.textContent = s.lastError ? s.lastError.text + ", " + ago(s.lastError.atMs) : "None";
+  err.className = s.lastError ? "bad" : "";
+  const chat = $("chat");
+  chat.textContent = s.chat.online
+    ? "Available to leads, " + s.chat.peers + (s.chat.peers === 1 ? " open chat" : " open chats")
+    : "Not available";
+  const chatErr = $("chatError");
+  chatErr.textContent = s.chat.lastError ? s.chat.lastError.text + ", " + ago(s.chat.lastError.atMs) : "None";
+  chatErr.className = s.chat.lastError ? "bad" : "";
+  $("toggle").textContent = s.enabled ? "Turn off" : "Turn on";
+  $("toggleNote").textContent = s.enabled
+    ? "Turning off stops answering and disables start at login."
+    : "Off. Not answering and not starting at login.";
+  $("signout").disabled = !s.signedInAs;
+  $("build").textContent = s.build || "Development build, does not update";
+  $("updateLast").textContent = s.update ? s.update.text + ", " + ago(s.update.atMs) : "Not checked yet";
+  $("autoUpdate").checked = s.autoUpdate;
+  $("autoUpdate").disabled = !s.build;
+  $("updateNow").disabled = !s.build;
+  for (const [id, value] of [["mName", s.model.name], ["mUrl", s.model.url], ["mSha", s.model.sha256]]) {
+    if (document.activeElement !== $(id) && !$(id).dataset.dirty) $(id).value = value;
+  }
+}
+
+async function refresh() {
+  try { render(await api("/api/status")); } catch (e) { $("phase").textContent = "Relay is not reachable"; }
+}
+
+$("toggle").onclick = async () => {
+  try {
+    const res = await api("/api/enabled", { enabled: !status.enabled });
+    $("toggleNote").textContent = res.message || "";
+  } catch (e) { $("toggleNote").textContent = e.message; }
+  refresh();
+};
+
+$("signout").onclick = async () => {
+  try { await api("/api/signout", {}); $("signMsg").textContent = "Signed out."; } catch (e) { $("signMsg").textContent = e.message; }
+  refresh();
+};
+
+$("autoUpdate").onchange = async () => {
+  try { await api("/api/autoupdate", { enabled: $("autoUpdate").checked }); $("updateMsg").textContent = ""; } catch (e) { $("updateMsg").textContent = e.message; }
+  refresh();
+};
+
+$("updateNow").onclick = async () => {
+  try { await api("/api/updatenow", {}); $("updateMsg").textContent = "Checking."; } catch (e) { $("updateMsg").textContent = e.message; }
+  setTimeout(refresh, 4000);
+};
+
+for (const id of ["mName", "mUrl", "mSha"]) $(id).oninput = () => { $(id).dataset.dirty = "1"; };
+
+async function setModel(model) {
+  try {
+    await api("/api/model", model);
+    for (const id of ["mName", "mUrl", "mSha"]) delete $(id).dataset.dirty;
+    $("modelMsg").textContent = "Saved. The download starts shortly.";
+  } catch (e) { $("modelMsg").textContent = e.message; }
+  refresh();
+}
+$("modelForm").onsubmit = (ev) => {
+  ev.preventDefault();
+  setModel({ name: $("mName").value.trim(), url: $("mUrl").value.trim(), sha256: $("mSha").value.trim() });
+};
+$("mDefault").onclick = () => setModel(status.defaultModel);
+
+const FIREBASE = "https://www.gstatic.com/firebasejs/13.2.0/";
+$("signin").onclick = async () => {
+  const msg = $("signMsg");
+  $("signin").disabled = true;
+  msg.textContent = "Opening Google sign-in.";
+  try {
+    const [app, auth, fns] = await Promise.all([
+      import(FIREBASE + "firebase-app.js"),
+      import(FIREBASE + "firebase-auth.js"),
+      import(FIREBASE + "firebase-functions.js"),
+    ]);
+    const central = app.initializeApp(RELAY.central, "central");
+    const dataApp = app.initializeApp(RELAY.data, "data");
+    const centralAuth = auth.getAuth(central);
+    const dataAuth = auth.getAuth(dataApp);
+    const google = await auth.signInWithPopup(centralAuth, new auth.GoogleAuthProvider());
+    msg.textContent = "Checking team approval.";
+    const callable = fns.httpsCallable(fns.getFunctions(central), RELAY.callable, { timeout: 90000 });
+    const reply = await callable({ targetApp: RELAY.appKey });
+    const session = await auth.signInWithCustomToken(dataAuth, reply.data.customToken);
+    await api("/api/link", { refreshToken: session.user.refreshToken, email: google.user.email || "" });
+    await Promise.allSettled([dataAuth.signOut(), centralAuth.signOut()]);
+    msg.textContent = "Signed in.";
+  } catch (e) {
+    const code = String(e.code || "");
+    msg.textContent = code.includes("unauthorized-domain")
+      ? "Google sign-in does not allow this address. Open this page at http://localhost:" + location.port + "/ and check that localhost is an authorized domain on the central project."
+      : code.includes("permission-denied")
+        ? "This account is not approved for Spectrum Strategy. Ask a team admin."
+        : code.includes("popup-closed") ? "Sign-in was cancelled." : "Sign-in failed: " + (e.message || code);
+  }
+  $("signin").disabled = false;
+  refresh();
+};
+
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>
