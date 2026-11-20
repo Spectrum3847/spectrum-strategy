@@ -15,7 +15,7 @@ permissions:
 
 env:
   SOURCE_REPO: Spectrum3847/SpectrumStrategy
-  FLUTTER_VERSION: 3.50.0
+  FLUTTER_VERSION: 3.50.1
 
 jobs:
   context:
