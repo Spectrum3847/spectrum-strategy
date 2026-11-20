@@ -272,13 +272,20 @@ jobs:
           token: ${{ secrets.MIRROR_SOURCE_TOKEN }}
           persist-credentials: false
 
+      - name: Read the runner image
+        if: matrix.platform == 'linux'
+        id: image
+        run: |
+          echo "os=$ImageOS" >> "$GITHUB_OUTPUT"
+          echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"
+
       - name: Restore the apt package cache
         if: matrix.platform == 'linux'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/apt-archives/*.deb
-          key: apt-${{ env.ImageOS }}-${{ env.ImageVersion }}
-          restore-keys: apt-${{ env.ImageOS }}-
+          key: apt-pr-build-${{ steps.image.outputs.os }}-${{ steps.image.outputs.version }}
+          restore-keys: apt-pr-build-${{ steps.image.outputs.os }}-
 
       - name: Install Linux build dependencies
         if: matrix.platform == 'linux'
@@ -295,6 +302,7 @@ jobs:
             [ "$i" -lt 5 ] || exit 1
           done
           sudo "${apt[@]}" install -y "${pkgs[@]}"
+          sudo "${apt[@]}" autoclean
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
