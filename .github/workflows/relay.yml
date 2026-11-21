@@ -1,0 +1,220 @@
+name: Relay
+
+on:
+  workflow_call:
+    inputs:
+      force:
+        description: "Rebuild even if relay/ is unchanged"
+        type: boolean
+        default: false
+    secrets:
+      RELAY_SIGNING_KEY:
+        required: false
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rebuild even if relay/ is unchanged"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: relay
+  cancel-in-progress: false
+
+env:
+  SOURCE_BRANCH: develop
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.plan.outputs.build }}
+      stamp: ${{ steps.plan.outputs.stamp }}
+      tree: ${{ steps.plan.outputs.tree }}
+      sha: ${{ steps.plan.outputs.sha }}
+    steps:
+      - name: Checkout the snapshot
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.SOURCE_BRANCH }}
+          persist-credentials: false
+
+      - name: Decide whether to build
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          tree="$(git rev-parse -q --verify HEAD:relay || true)"
+          if [ -z "$tree" ]; then
+            echo "The snapshot has no relay/ folder; nothing to build."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          body="$(gh release view relay-latest --repo "$GITHUB_REPOSITORY" --json body --jq .body 2>/dev/null || true)"
+          published="$(printf '%s\n' "$body" | sed -n 's/^tree //p')"
+          if [ "$tree" = "$published" ] && [ "$FORCE" != "true" ]; then
+            echo "relay-latest already carries this relay/ folder; nothing to build."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          stamp="$(date -u +%Y%m%d%H%M%S)"
+          sha="$(git rev-parse HEAD)"
+          {
+            echo "build=true"
+            echo "stamp=$stamp"
+            echo "tree=$tree"
+            echo "sha=$sha"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux, arch: x86_64, runner: ubuntu-latest, ext: "" }
+          - { os: linux, arch: aarch64, runner: ubuntu-24.04-arm, ext: "" }
+          - { os: macos, arch: aarch64, runner: macos-latest, ext: "" }
+          - { os: macos, arch: x86_64, runner: macos-15-intel, ext: "" }
+          - { os: windows, arch: x86_64, runner: windows-latest, ext: ".exe" }
+          - { os: windows, arch: aarch64, runner: windows-11-arm, ext: ".exe" }
+    defaults:
+      run:
+        shell: bash
+    env:
+      RELAY_BUILD: ${{ needs.plan.outputs.stamp }}
+      ASSET: relay-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}
+    steps:
+      - name: Checkout the snapshot
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            relay/target
+          key: relay-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('relay/Cargo.lock') }}
+          restore-keys: relay-${{ matrix.os }}-${{ matrix.arch }}-
+
+      - name: Build
+        working-directory: relay
+        run: cargo build --release --locked
+
+      - name: Collect and check the binary
+        run: |
+          set -euo pipefail
+          mkdir out
+          cp "relay/target/release/relay${{ matrix.ext }}" "out/$ASSET"
+          reported="$("out/$ASSET" version)"
+          if [ "$reported" != "$RELAY_BUILD" ]; then
+            echo "::error::The binary reports build '$reported', expected '$RELAY_BUILD'"
+            exit 1
+          fi
+
+      - name: Package for double-click
+        run: |
+          set -euo pipefail
+          cd relay/target/release
+          case "${{ matrix.os }}" in
+            linux) tar -czf "$GITHUB_WORKSPACE/out/relay-linux-${{ matrix.arch }}.tar.gz" relay ;;
+            macos) zip -q "$GITHUB_WORKSPACE/out/relay-macos-${{ matrix.arch }}.zip" relay ;;
+          esac
+
+      - name: Upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: relay-${{ matrix.os }}-${{ matrix.arch }}
+          path: out/*
+          retention-days: 1
+
+  publish:
+    needs: [plan, build]
+    if: ${{ !cancelled() && needs.plan.outputs.build == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      BUILD: ${{ needs.plan.outputs.stamp }}
+      TREE: ${{ needs.plan.outputs.tree }}
+      ALL_BUILT: ${{ needs.build.result == 'success' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout relay/ of the snapshot
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          sparse-checkout: relay
+          persist-credentials: false
+
+      - name: Download the builds
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          pattern: relay-*
+          merge-multiple: true
+          path: dist
+
+      - name: Write and sign the checksum list
+        env:
+          RELAY_SIGNING_KEY: ${{ secrets.RELAY_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RELAY_SIGNING_KEY" ]; then
+            echo "::error::The RELAY_SIGNING_KEY secret is not set on this repo."
+            exit 1
+          fi
+          if ! compgen -G 'dist/relay-*' >/dev/null; then
+            echo "::error::No target built."
+            exit 1
+          fi
+          (cd dist && sha256sum relay-*) > sums.txt
+          { echo "build $BUILD"; cat sums.txt; } > relay-checksums.txt
+          key="$RUNNER_TEMP/relay-key.pem"
+          (umask 077; printf '%s\n' "$RELAY_SIGNING_KEY" > "$key")
+          trap 'rm -f "$key"' EXIT
+
+          public="$(openssl pkey -in "$key" -pubout -outform DER | tail -c 32 | xxd -p -c 64)"
+          compiled="$(grep -oE 'PUBLIC_KEY: &str = "[0-9a-f]{64}"' relay/src/update.rs | grep -oE '[0-9a-f]{64}')"
+          if [ "$public" != "$compiled" ]; then
+            echo "::error::RELAY_SIGNING_KEY does not match PUBLIC_KEY in relay/src/update.rs"
+            exit 1
+          fi
+
+          openssl pkeyutl -sign -inkey "$key" -rawin -in relay-checksums.txt -out sig.bin
+          xxd -p sig.bin | tr -d '\n' > relay-checksums.txt.sig
+          cat relay-checksums.txt
+
+      - name: Publish to the rolling release
+        run: |
+          set -euo pipefail
+          if ! gh release view relay-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create relay-latest --repo "$GITHUB_REPOSITORY" \
+              --title "Relay" --notes "Relay builds." --prerelease --latest=false
+          fi
+
+          gh release upload relay-latest --repo "$GITHUB_REPOSITORY" --clobber dist/relay-*
+          gh release upload relay-latest --repo "$GITHUB_REPOSITORY" --clobber \
+            relay-checksums.txt relay-checksums.txt.sig
+
+          tree_line=""
+          if [ "$ALL_BUILT" = "true" ]; then tree_line="tree $TREE"; fi
+          gh release edit relay-latest --repo "$GITHUB_REPOSITORY" \
+            --notes "$(printf 'Unsigned relay builds, build %s.\n%s\n' "$BUILD" "$tree_line")"
