@@ -314,6 +314,21 @@ jobs:
       - name: Fetch packages
         run: flutter pub get
 
+      - name: Install Android NDK
+        run: |
+          flutter_bin="$(command -v flutter)"
+          ext="${flutter_bin%/bin/flutter}/packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt"
+          ndk="$(grep -oP 'val ndkVersion: String = "\K[^"]+' "$ext")" || {
+            echo "No ndkVersion found in $ext" >&2
+            exit 1
+          }
+          for attempt in 1 2 3; do
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" && exit 0
+            echo "NDK $ndk install attempt $attempt failed" >&2
+            sleep 15
+          done
+          exit 1
+
       - name: Cache Gradle
         uses: actions/cache@v6
         with:
