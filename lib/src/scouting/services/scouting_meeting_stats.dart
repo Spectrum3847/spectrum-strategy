@@ -1,0 +1,179 @@
+import '../models/pit_scout_entry.dart';
+import '../models/scout_config.dart';
+import '../models/scout_entry.dart';
+import '../models/team_analysis.dart';
+import 'robot_type.dart';
+import 'team_summary_stats.dart';
+
+class RankedTeamRow {
+  const RankedTeamRow({
+    required this.teamNumber,
+    this.teamName,
+    this.iqmAuto,
+    this.iqmTeleop,
+    this.avgAuto,
+    this.avgTeleop,
+  });
+
+  final int teamNumber;
+  final String? teamName;
+  final double? iqmAuto;
+  final double? iqmTeleop;
+
+  final double? avgAuto;
+
+  final double? avgTeleop;
+}
+
+class ScoutingMeetingStats {
+  const ScoutingMeetingStats._();
+
+  static const _ryCardCode = 'ryCard';
+  static const _autoFuelCode = 'autoFuelScored';
+  static const _teleopFuelCode = 'teleopFuelScored';
+
+  static List<RankedTeamRow> rankedTeams({
+    required Iterable<ScoutEntry> scoutEntries,
+    ScoutConfig? config,
+    Map<int, String> teamNames = const <int, String>{},
+  }) {
+    final byTeam = <int, List<ScoutEntry>>{};
+    for (final entry in scoutEntries) {
+      (byTeam[entry.teamNumber] ??= <ScoutEntry>[]).add(entry);
+    }
+    if (byTeam.isEmpty) return const <RankedTeamRow>[];
+
+    final analyses = <int, TeamAnalysis>{
+      for (final team in byTeam.entries)
+        team.key: TeamAnalysis.fromEntries(
+          team.key,
+          team.value,
+          config: config,
+        ),
+    };
+    final summaries = <int, TeamSummaryRow>{
+      for (final row in TeamSummaryStats.build(
+        scoutEntries,
+        teamNumbers: byTeam.keys,
+        config: config,
+      ))
+        row.teamNumber: row,
+    };
+
+    final teams = byTeam.keys.toList()
+      ..sort((a, b) {
+        final scoreA = analyses[a]?.iqmTotalScore ?? -1;
+        final scoreB = analyses[b]?.iqmTotalScore ?? -1;
+        final byScore = scoreB.compareTo(scoreA);
+        if (byScore != 0) return byScore;
+        return a.compareTo(b);
+      });
+
+    return <RankedTeamRow>[
+      for (final team in teams)
+        RankedTeamRow(
+          teamNumber: team,
+          teamName: teamNames[team],
+          iqmAuto: summaries[team]?.iqmAuto,
+          iqmTeleop: summaries[team]?.iqmTeleop,
+          avgAuto: _plainMean(byTeam[team], _autoFuelCode),
+          avgTeleop: _plainMean(byTeam[team], _teleopFuelCode),
+        ),
+    ];
+  }
+
+  static double? _plainMean(List<ScoutEntry>? entries, String code) {
+    if (entries == null || entries.isEmpty) return null;
+    final values = <double>[];
+    for (final entry in entries) {
+      if (!entry.fieldValues.containsKey(code)) continue;
+      final raw = entry.fieldValues[code];
+      final value = raw is num
+          ? raw.toDouble()
+          : num.tryParse(raw?.toString() ?? '')?.toDouble();
+      if (value != null) values.add(value);
+    }
+    if (values.isEmpty) return null;
+    return values.reduce((a, b) => a + b) / values.length;
+  }
+
+  static List<int> tankDrivetrainTeams({
+    required Map<int, PitScoutEntry> pitEntryByTeam,
+    ScoutConfig? pitConfig,
+  }) {
+    ScoutConfigField? driveTrainField;
+    if (pitConfig != null) {
+      for (final field in pitConfig.allFields) {
+        if (field.code == RobotType.driveTrainCode) {
+          driveTrainField = field;
+          break;
+        }
+      }
+    }
+    final teams = <int>[];
+    for (final entry in pitEntryByTeam.values) {
+      final raw = entry.fieldValues[RobotType.driveTrainCode];
+      if (raw == null) continue;
+      final label = driveTrainField != null
+          ? driveTrainField.labelForStored(raw)
+          : raw.toString();
+      if (label.toLowerCase().contains('tank')) teams.add(entry.teamNumber);
+    }
+    teams.sort();
+    return teams;
+  }
+
+  static List<int> cardedTeams(Iterable<ScoutEntry> scoutEntries) {
+    final teams = <int>{};
+    for (final entry in scoutEntries) {
+      if (cardColorOf(entry.fieldValues[_ryCardCode]) != null) {
+        teams.add(entry.teamNumber);
+      }
+    }
+    final sorted = teams.toList()..sort();
+    return sorted;
+  }
+
+  static Map<int, CardColor> cardedTeamColors(Iterable<ScoutEntry> entries) {
+    final result = <int, CardColor>{};
+    for (final entry in entries) {
+      final color = cardColorOf(entry.fieldValues[_ryCardCode]);
+      if (color == null) continue;
+      final existing = result[entry.teamNumber];
+      if (existing != null && existing.severity >= color.severity) continue;
+      result[entry.teamNumber] = color;
+    }
+    return result;
+  }
+
+  static CardColor? cardColorOf(Object? raw) {
+    if (raw is bool) return raw ? CardColor.unknown : null;
+    switch (raw?.toString()) {
+      case 'Yellow':
+        return CardColor.yellow;
+      case 'Red':
+        return CardColor.red;
+      case 'true':
+        return CardColor.unknown;
+      default:
+        return null;
+    }
+  }
+}
+
+enum CardColor {
+  yellow,
+  unknown,
+  red;
+
+  int get severity {
+    switch (this) {
+      case CardColor.yellow:
+        return 0;
+      case CardColor.unknown:
+        return 1;
+      case CardColor.red:
+        return 2;
+    }
+  }
+}
