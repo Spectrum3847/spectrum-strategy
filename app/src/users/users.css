@@ -1,0 +1,112 @@
+.users {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.users p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.users .notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.user-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.users-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.user {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: start;
+  padding: 12px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.user:last-child {
+  border-bottom: 1px solid var(--hairline);
+}
+
+.user-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.user-name {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.user-delivery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.user-editor {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.user-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-top: 1px solid var(--hairline);
+}
+
+.user-section:first-child {
+  border-top: 0;
+}
+
+.user-editor > .actions {
+  padding: 0 16px 16px;
+}
+
+.user-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.user-check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap);
+  font-size: var(--fs-body);
+}
+
+.user-check input {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--accent);
+}

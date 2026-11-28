@@ -1,0 +1,40 @@
+.training-banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(8px + env(safe-area-inset-top))
+    max(var(--gutter), env(safe-area-inset-right)) 8px
+    max(var(--gutter), env(safe-area-inset-left));
+  background: var(--surface-2);
+  border-bottom: 3px solid var(--warn);
+  font-size: var(--fs-secondary);
+}
+
+.training-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.training-text strong {
+  color: var(--warn);
+}
+
+.training-banner .btn {
+  flex: none;
+}
+
+body:has(.training-banner) .shell[data-layout="rail"] .nav,
+body:has(.training-banner) .shell[data-layout="sidebar"] .nav {
+  top: var(--training-h, 0px);
+  height: calc(100dvh - var(--training-h, 0px));
+}
+
+.state[data-state="training"] {
+  color: var(--warn);
+}

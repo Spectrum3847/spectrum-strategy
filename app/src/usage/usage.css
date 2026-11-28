@@ -1,0 +1,105 @@
+.usage {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.usage p,
+.usage h2 {
+  margin: 0;
+}
+
+.usage-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.usage-stat {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.usage-stat strong {
+  font-size: var(--fs-title);
+}
+
+.usage-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.usage-table th,
+.usage-table td {
+  padding: 4px 0;
+  text-align: left;
+  font-weight: 400;
+  font-size: var(--fs-secondary);
+}
+
+.usage-table tbody th {
+  width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-table .usage-count {
+  width: 52px;
+  text-align: right;
+}
+
+.usage-bar {
+  display: block;
+  height: 14px;
+  background: var(--hairline);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.usage-bar[data-leading="true"] {
+  background: var(--accent);
+}
+
+.usage-days {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 72px;
+}
+
+.usage-days span {
+  flex: 1;
+  background: var(--hairline);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.usage details summary {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.share-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap);
+}
+
+.share-switch input {
+  width: 20px;
+  height: 20px;
+}

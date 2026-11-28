@@ -1,0 +1,25 @@
+.install {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  font-size: var(--fs-secondary);
+}
+
+.install h2,
+.install p,
+.install ol {
+  margin: 0;
+}
+
+.install h2 {
+  font-size: var(--fs-section);
+}
+
+.install ol {
+  padding-left: 20px;
+}

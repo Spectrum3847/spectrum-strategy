@@ -1,0 +1,68 @@
+[
+  {
+    "uid": "scout-a",
+    "name": "Scout A",
+    "email": "scout-a@example.test",
+    "roles": ["scouter"]
+  },
+  {
+    "uid": "scout-b",
+    "name": "Scout B",
+    "email": "scout-b@example.test",
+    "roles": ["scouter"]
+  },
+  {
+    "uid": "scout-c",
+    "name": "Scout C",
+    "email": "scout-c@example.test",
+    "roles": ["scouter"]
+  },
+  {
+    "uid": "scout-d",
+    "name": "Scout D",
+    "email": "scout-d@example.test",
+    "roles": ["scouter"]
+  },
+  {
+    "uid": "scout-e",
+    "name": "Scout E",
+    "email": "scout-e@example.test",
+    "roles": ["scouter"]
+  },
+  {
+    "uid": "scout-f",
+    "name": "Scout F",
+    "email": "scout-f@example.test",
+    "roles": ["scouter"]
+  },
+  {
+    "uid": "scout-g",
+    "name": "Scout G",
+    "email": "scout-g@example.test",
+    "roles": ["scouter"]
+  },
+  {
+    "uid": "scout-h",
+    "name": "Scout H",
+    "email": "scout-h@example.test",
+    "roles": ["scouter"]
+  },
+  {
+    "uid": "lead-b",
+    "name": "Lead B",
+    "email": "lead-b@example.test",
+    "roles": ["strategy"]
+  },
+  {
+    "uid": "admin-c",
+    "name": "Admin C",
+    "email": "admin-c@example.test",
+    "roles": ["admin"]
+  },
+  {
+    "uid": "viewer-d",
+    "name": "Viewer D",
+    "email": "viewer-d@example.test",
+    "roles": ["viewer"]
+  }
+]

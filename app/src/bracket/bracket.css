@@ -1,0 +1,65 @@
+.bracket-section,
+.simulations {
+  margin-block: 1.5rem;
+}
+.bracket-scroll,
+.simulation-table {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.bracket-grid {
+  position: relative;
+  width: 1580px;
+  height: 820px;
+}
+.bracket-heading {
+  position: absolute;
+  top: 0;
+  width: 230px;
+}
+.bracket-lines {
+  position: absolute;
+  inset: 0;
+}
+.bracket-lines path {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+.bracket-lines .bracket-drop {
+  stroke-dasharray: 4 3;
+}
+.bracket-match {
+  position: absolute;
+  width: 230px;
+  min-height: 100px;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 0.5rem;
+  display: grid;
+  gap: 0.3rem;
+}
+.bracket-winner {
+  font-weight: 700;
+}
+.simulation-table table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.simulation-table th,
+.simulation-table td {
+  padding: 0.4rem;
+  text-align: left;
+}
+.simulation-table input {
+  width: 5rem;
+  min-height: 44px;
+}
+.simulation-table input[aria-invalid="true"] {
+  outline: 2px solid var(--error);
+}
+.simulations section {
+  margin-block: 1.5rem;
+}

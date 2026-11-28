@@ -1,0 +1,42 @@
+.report-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.report-kind {
+  display: flex;
+  gap: 8px;
+}
+
+.report-kind .chip {
+  flex: 1 1 0;
+}
+
+.report-shots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.report-shots li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.report-shots span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.report-attached {
+  margin: 0;
+}

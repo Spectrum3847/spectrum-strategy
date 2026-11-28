@@ -1,0 +1,128 @@
+.alert-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.alert-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.alert-text p {
+  margin: 0;
+}
+
+.alert-text ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
+.alert-banner .btn {
+  flex: none;
+}
+
+.pre-event {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.pre-event h2,
+.pre-event p {
+  margin: 0;
+}
+
+.link-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--gutter);
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pit-answers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.pit-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pit-answer dt {
+  color: var(--muted);
+  font-size: var(--fs-secondary);
+}
+
+.pit-answer dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pit-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pit-shifts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pit-shift {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.pit-shift[data-mine="true"] {
+  background: var(--chip);
+  border-color: var(--accent);
+}
+
+.pit-shift-name {
+  display: block;
+  font-weight: 600;
+}

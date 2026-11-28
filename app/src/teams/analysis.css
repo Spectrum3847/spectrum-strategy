@@ -1,0 +1,25 @@
+.analysis section {
+  margin-block: 24px;
+}
+.analysis-scatter {
+  display: block;
+  width: min(100%, 600px);
+  height: auto;
+}
+.analysis-rows li {
+  display: grid;
+  grid-template-columns: 4em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--hairline);
+}
+.analysis-rows svg {
+  width: 100%;
+  height: 28px;
+}
+
+.analysis-rows li[data-us] {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}

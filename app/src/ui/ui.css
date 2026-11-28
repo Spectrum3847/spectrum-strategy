@@ -1,0 +1,104 @@
+.team-ref {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: var(--tap);
+  font-weight: 600;
+}
+
+a.team-ref {
+  text-decoration: underline;
+}
+
+.status-screen {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(var(--gutter), env(safe-area-inset-top))
+    max(var(--gutter), env(safe-area-inset-right))
+    max(var(--gutter), env(safe-area-inset-bottom))
+    max(var(--gutter), env(safe-area-inset-left));
+}
+
+.status-inner {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.unsent-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.unsent-banner[data-refused="true"] {
+  border-color: var(--error);
+}
+
+.unsent-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--fs-secondary);
+}
+
+.unsent-banner .btn {
+  flex: none;
+}
+
+.nav-link {
+  position: relative;
+}
+
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius);
+  background: var(--warn);
+  color: var(--page);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.shell[data-layout="bar"] .nav-badge,
+.shell[data-layout="rail"] .nav-badge {
+  position: absolute;
+  top: 4px;
+  left: calc(50% + 4px);
+}
+
+.shell[data-layout="sidebar"] .nav-badge {
+  margin-left: auto;
+}
+
+.delete-ask {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.delete-prompt {
+  font-size: var(--fs-secondary);
+}
+
+.btn.delete-confirm {
+  border-color: var(--error);
+  color: var(--error);
+}

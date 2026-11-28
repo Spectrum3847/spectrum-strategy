@@ -1,0 +1,167 @@
+.ce-form-editor,
+.ce-group,
+.ce-sections,
+.ce-section,
+.ce-paste,
+.ce-form,
+.ce-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ce-group {
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.ce-group h4,
+.ce-section h4,
+.ce-form h4 {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: 700;
+}
+
+.ce-change {
+  display: contents;
+}
+
+.ce-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ce-field {
+  padding: 8px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.ce-field:first-child {
+  border-top: 0;
+}
+
+.ce-row,
+.ce-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ce-choice {
+  padding: 4px 0;
+}
+
+.ce-choice .input {
+  flex: 1 1 160px;
+  width: auto;
+}
+
+.ce-grow {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ce-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ce-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ce-section {
+  padding: 12px;
+  background: var(--page);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.ce-form {
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+
+.ce-form label,
+.ce-paste label {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ce-choices {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin: 0;
+}
+
+.ce-choices legend {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.ce-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: var(--tap);
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.ce-check input {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.ce-check > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 600;
+}
+
+.ce-check .secondary {
+  font-weight: 400;
+}
+
+.ce-add-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ce-add-section .input {
+  flex: 1 1 200px;
+  width: auto;
+}
+
+.ce-json {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: var(--fs-secondary);
+  white-space: pre;
+  overflow: auto;
+}
+
+.ce-h3 {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: 700;
+}

@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Check what changed
+        id: scope
+        run: |
+          if git diff --quiet HEAD^1 HEAD -- . ':!.github/workflows'; then
+            echo "Only workflows changed; skipping the app checks."
+            echo "source=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "source=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up pnpm
+        if: steps.scope.outputs.source == 'true'
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115
+        with:
+          package_json_file: app/package.json
+
+      - name: Set up Node
+        if: steps.scope.outputs.source == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install dependencies
+        if: steps.scope.outputs.source == 'true'
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck, test and build
+        if: steps.scope.outputs.source == 'true'
+        working-directory: app
+        run: |
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Check REUSE compliance
+        uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5

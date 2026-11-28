@@ -1,0 +1,91 @@
+@font-face {
+  font-family: "Overpass";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("@fontsource-variable/overpass/files/overpass-latin-wght-normal.woff2")
+    format("woff2-variations");
+}
+
+:root {
+  color-scheme: light;
+
+  --page: #f2ecf7;
+  --surface: #eae1f1;
+  --surface-2: #dfd3ea;
+  --ink: #2f2538;
+  --muted: #645870;
+  --hairline: #c9bad8;
+  --accent: #3c0060;
+  --on-accent: #fdfcfe;
+  --chip: #ddd5e7;
+  --grid: #c2afd3;
+
+  --phase-auto: #3c0060;
+  --phase-teleop: #73697f;
+  --phase-endgame: #9d8ab0;
+
+  --alliance-red: #c02b2b;
+  --alliance-blue: #1f4fa8;
+  --on-alliance: #fdfcfe;
+
+  --error: #98401a;
+  --warn: #98401a;
+  --positive: #1e6427;
+
+  --radius: 4px;
+  --tap: 44px;
+  --nav-h: 64px;
+  --rail-w: 88px;
+  --side-w: 232px;
+  --gutter: 16px;
+
+  --fs-title: 19px;
+  --fs-section: 16px;
+  --fs-body: 15px;
+  --fs-secondary: 13px;
+  --fs-label: 12px;
+  --font: "Overpass", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #141117;
+    --surface: #1e1b22;
+    --surface-2: #2a2630;
+    --ink: #f1ecf7;
+    --muted: #cac2d6;
+    --hairline: #4a4454;
+    --accent: #cfbcff;
+    --on-accent: #270057;
+    --chip: #3d3340;
+    --grid: #4a4454;
+    --phase-auto: #cfbcff;
+    --phase-teleop: #9d93aa;
+    --phase-endgame: #b8a5cc;
+    --error: #ee652b;
+    --warn: #ee652b;
+    --positive: #6fcf8b;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #141117;
+  --surface: #1e1b22;
+  --surface-2: #2a2630;
+  --ink: #f1ecf7;
+  --muted: #cac2d6;
+  --hairline: #4a4454;
+  --accent: #cfbcff;
+  --on-accent: #270057;
+  --chip: #3d3340;
+  --grid: #4a4454;
+  --phase-auto: #cfbcff;
+  --phase-teleop: #9d93aa;
+  --phase-endgame: #b8a5cc;
+  --error: #ee652b;
+  --warn: #ee652b;
+  --positive: #6fcf8b;
+}

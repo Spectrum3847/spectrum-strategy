@@ -1,0 +1,146 @@
+name: Nightly
+
+on:
+  schedule:
+
+    - cron: "0 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: Spectrum3847/SpectrumStrategy
+  DEVELOP_BRANCH: develop
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: write
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: master
+          token: ${{ secrets.MIRROR_SOURCE_TOKEN }}
+          path: source
+
+          persist-credentials: false
+
+      - name: Record source commit
+        id: source
+        run: |
+          source_sha="$(git -C source rev-parse --short HEAD)"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout mirror
+        uses: actions/checkout@v7
+        with:
+          path: mirror
+          fetch-depth: 0
+
+      - name: Start a fresh develop
+        run: |
+          set -euo pipefail
+          cd mirror
+
+          git checkout -q --orphan snapshot
+          git rm -rq --cached . || true
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: source/scripts/oss/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+
+      - name: Assemble the snapshot
+        run: source/scripts/oss/assemble_mirror.sh source mirror
+
+      - name: Push the snapshot
+        run: |
+          set -euo pipefail
+          cd mirror
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          NEW_TREE="$(git write-tree)"
+          OLD_TREE="$(git rev-parse -q --verify "refs/remotes/origin/$DEVELOP_BRANCH^{tree}" || true)"
+          if [ "$NEW_TREE" = "$OLD_TREE" ]; then
+            echo "Snapshot matches develop; nothing to push."
+            exit 0
+          fi
+          git commit -q -m "Sync from internal repo"
+
+          git push -q --force origin "snapshot:$DEVELOP_BRANCH"
+
+  relay:
+
+    needs: sync
+    permissions:
+      contents: write
+    uses: ./.github/workflows/relay.yml
+    secrets:
+      RELAY_SIGNING_KEY: ${{ secrets.RELAY_SIGNING_KEY }}
+
+  report-failure:
+    needs: sync
+
+    if: >-
+      always() &&
+      contains(fromJSON('["failure", "cancelled"]'), needs.sync.result)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Open or update the failure issue on the private repo
+        env:
+          GH_TOKEN: ${{ secrets.NIGHTLY_ALERT_TOKEN }}
+          SOURCE_REPO: Spectrum3847/SpectrumStrategy
+          SOURCE_SHA: ${{ needs.sync.outputs.source_sha }}
+          SYNC: ${{ needs.sync.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::NIGHTLY_ALERT_TOKEN is not set; cannot report the failure to $SOURCE_REPO."
+            exit 0
+          fi
+
+          title="Nightly sync is failing on the mirror"
+          {
+            echo "The mirror's nightly sync did not succeed, so the mirror's develop"
+            echo "branch and the relay builds are behind master."
+            echo
+            echo "\`cancelled\` usually means the job hit its timeout, not that someone"
+            echo "stopped it."
+            echo
+            echo "Sync result: $SYNC"
+            echo
+            echo "Snapshot of master: \`$SOURCE_SHA\`"
+            echo
+            echo "Run: $RUN_URL"
+          } > body.md
+
+          existing="$(gh issue list --repo "$SOURCE_REPO" --state open \
+                      --search "$title in:title" --json number,title \
+                      --jq "[.[] | select(.title == \"$title\")] | .[0].number // empty")"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$SOURCE_REPO" --body-file body.md
+            echo "Commented on #$existing."
+          else
+            gh issue create --repo "$SOURCE_REPO" --title "$title" --body-file body.md
+          fi

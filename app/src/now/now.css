@@ -1,0 +1,144 @@
+.now {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.now-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 16px;
+}
+
+.now-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.now-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-size: var(--fs-title);
+  font-weight: 700;
+}
+
+.now-away {
+  font-size: var(--fs-body);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.alliance {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.alliance-caption {
+  font-size: var(--fs-secondary);
+  color: var(--muted);
+}
+
+.alliance-teams {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.alliance-teams li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 8px;
+  border-radius: var(--radius);
+}
+
+.alliance-teams li[data-us="true"] {
+  background: var(--surface-2);
+}
+
+.us {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.later {
+  display: flex;
+  flex-direction: column;
+}
+
+.later li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.later li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.later-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.later-label {
+  min-width: var(--tap);
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  font-weight: 700;
+}
+
+a.later-label {
+  color: var(--accent);
+}
+
+.later-with {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 4px;
+}
+
+.now-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.now-section h3 {
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.gaps {
+  display: flex;
+  flex-direction: column;
+}
+
+.gaps li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+}

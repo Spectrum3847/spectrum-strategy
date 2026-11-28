@@ -1,0 +1,247 @@
+.accuracy {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.acc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.acc-intro {
+  max-width: 68ch;
+  font-size: var(--fs-secondary);
+  color: var(--muted);
+}
+
+.acc-coverage {
+  list-style: none;
+  margin: 0;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.acc-scroll {
+  overflow-x: auto;
+}
+
+.acc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.acc-table th,
+.acc-table td {
+  padding: 4px 8px;
+  text-align: left;
+  font-weight: 400;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.acc-table thead th {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.acc-table tbody th[scope="row"] {
+  font-weight: 600;
+}
+
+.acc-table .acc-num {
+  text-align: right;
+}
+
+.acc-table td.acc-num {
+  font-size: var(--fs-section);
+  font-weight: 600;
+}
+
+.acc-row[data-enough="false"] th,
+.acc-row[data-enough="false"] td {
+  color: var(--muted);
+}
+
+.acc-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 8px 0 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.acc-toggle::before {
+  content: "+";
+  width: 20px;
+  flex: none;
+  color: var(--muted);
+}
+
+.acc-toggle[aria-expanded="true"]::before {
+  content: "-";
+}
+
+.acc-band {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.acc-band[data-band="check-in"] {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.acc-band[data-band="coach"] {
+  background: var(--error);
+  border-color: var(--error);
+  color: var(--page);
+}
+
+.acc-band[data-band="few"] {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.acc-drill-cell {
+  padding: 0 0 12px 20px;
+  background: var(--surface);
+}
+
+.acc-mapping {
+  border-top: 1px solid var(--hairline);
+  padding-top: 12px;
+}
+
+.acc-mapping summary {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  font-size: var(--fs-section);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.acc-mapping-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.acc-rows {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 24px;
+  width: 100%;
+}
+
+.acc-rows dt {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.acc-rows dd {
+  margin: 0;
+}
+
+.acc-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.acc-json {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: var(--fs-secondary);
+}
+
+.pc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pc-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.pc-tiles li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.pc-tiles strong {
+  font-size: var(--fs-title);
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pc-rows li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 12px;
+  border-left: 4px solid var(--hairline);
+  overflow-wrap: anywhere;
+}
+
+.pc-rows li[data-right="1"] {
+  border-left-color: var(--positive);
+}
+
+.pc-rows li[data-right="0"] {
+  border-left-color: var(--error);
+}
+
+.pc-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+}
+
+.pc-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  font-weight: 600;
+}
+
+.pc-mark {
+  font-weight: 600;
+}

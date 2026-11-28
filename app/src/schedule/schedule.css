@@ -1,0 +1,124 @@
+.sched {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sched-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sched-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sched-count {
+  font-size: var(--fs-body);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.sched-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sched-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.sched-row[data-us="true"] {
+  background: var(--surface-2);
+}
+
+.sched-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+}
+
+.sched-label {
+  min-width: var(--tap);
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  font-size: var(--fs-section);
+  font-weight: 700;
+}
+
+a.sched-label {
+  color: var(--accent);
+}
+
+.sched-ours {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.sched-result {
+  font-size: var(--fs-secondary);
+  font-weight: 600;
+}
+
+.sched-top .secondary {
+  margin-left: auto;
+}
+
+.sched-alliance {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.sched-teams {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 4px;
+}
+
+.sched-teams li {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sched-teams li[data-us="true"] .team-ref {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.sched-score {
+  min-width: 2.5em;
+  text-align: right;
+  font-size: var(--fs-section);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.sched-score[data-won="true"] {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.sched-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

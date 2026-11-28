@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dev-dist/
+dist-e2e/
+dist-check/
+e2e/out/
+e2e/firestore.rules

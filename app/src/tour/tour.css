@@ -1,0 +1,81 @@
+.tour-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: var(--gutter);
+  padding-bottom: max(var(--gutter), env(safe-area-inset-bottom));
+}
+
+.tour-dim {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+  pointer-events: none;
+}
+
+.tour-ring {
+  position: absolute;
+  border: 2px solid var(--ink);
+  outline: 2px solid var(--page);
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+
+.tour-scrim[data-place="top"] {
+  align-items: flex-start;
+  padding-top: max(var(--gutter), env(safe-area-inset-top));
+}
+
+.tour-scrim[data-place="side"] {
+  align-items: center;
+}
+
+.tour-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: none;
+  cursor: default;
+}
+
+.tour {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  color: var(--ink);
+}
+
+.tour h2,
+.tour p {
+  margin: 0;
+}
+
+.tour h2:focus {
+  outline: none;
+}
+
+.tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+@media (min-width: 600px) {
+  .tour-scrim {
+    align-items: center;
+  }
+}

@@ -1,0 +1,169 @@
+.help {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.help-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--tap);
+  align-self: flex-start;
+  font-weight: 600;
+}
+
+.help-back-icon {
+  display: inline-flex;
+  rotate: 180deg;
+}
+
+.help-list {
+  border-top: 1px solid var(--hairline);
+}
+
+.help-list li {
+  border-bottom: 1px solid var(--hairline);
+}
+
+.help-list a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 8px 0;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.help-list a:hover {
+  background: var(--surface);
+}
+
+.help-list svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.help-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.help-item-title {
+  font-weight: 700;
+  font-size: var(--fs-section);
+}
+
+.doc {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.doc h1,
+.doc h2,
+.doc h3,
+.doc h4,
+.doc h5,
+.doc h6 {
+  scroll-margin-top: 16px;
+  line-height: 1.25;
+}
+
+.doc h2,
+.doc h3,
+.doc h4 {
+  margin-top: 12px;
+}
+
+.doc h3,
+.doc h4,
+.doc h5,
+.doc h6 {
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.doc ul,
+.doc ol {
+  margin: 0;
+  padding-left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.doc li > input {
+  margin-right: 8px;
+}
+
+.doc blockquote {
+  margin: 0;
+  padding: 4px 0 4px 12px;
+  border-left: 3px solid var(--hairline);
+  color: var(--muted);
+}
+
+.doc hr {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.doc code {
+  padding: 1px 4px;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.doc pre {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.doc pre code {
+  padding: 0;
+  background: none;
+}
+
+.doc-table {
+  overflow-x: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.doc table {
+  border-collapse: collapse;
+  font-size: var(--fs-secondary);
+}
+
+.doc th,
+.doc td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--hairline);
+  min-width: 8rem;
+}
+
+.doc th {
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.doc tbody tr:last-child td {
+  border-bottom: 0;
+}

@@ -1,0 +1,19 @@
+allowBuilds:
+  "@firebase/util": false
+  protobufjs: false
+minimumReleaseAgeExclude:
+  - "@biomejs/biome@2.6.6"
+  - "@biomejs/cli-android-arm64@2.6.6"
+  - "@biomejs/cli-android-x64@2.6.6"
+  - "@biomejs/cli-darwin-arm64@2.6.6"
+  - "@biomejs/cli-darwin-x64@2.6.6"
+  - "@biomejs/cli-linux-arm64-musl@2.6.6"
+  - "@biomejs/cli-linux-arm64@2.6.6"
+  - "@biomejs/cli-linux-x64-musl@2.6.6"
+  - "@biomejs/cli-linux-x64@2.6.6"
+  - "@biomejs/cli-win32-arm64@2.6.6"
+  - "@biomejs/cli-win32-x64@2.6.6"
+
+overrides:
+  "@grpc/grpc-js": "^1.13.6"
+  "workbox-build>glob": "^14.0.2"
